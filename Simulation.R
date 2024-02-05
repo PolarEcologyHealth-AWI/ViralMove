@@ -17,6 +17,7 @@
 #### 2. Packages and functions
 {
   library(Rcpp)
+  library(gitcreds)
   library(RcppArmadillo)
   library(RcppProgress)
   library(sf); sf::sf_use_s2(FALSE)
