@@ -1,31 +1,53 @@
-library(Rcpp)
-library(RcppArmadillo)
-library(RcppProgress)
+##########################################################
+#### Titel: 
+#### Author: Marlena Lohse, Simeon Lisovski
+#### Date: 05.02.2024
+##########################################################
 
-source("Analysis/OptimSPD/R/OptimSPD.R", echo=FALSE)
-sourceCpp('Analysis/OptimSPD/src/OptimSPD_test.cpp', showOutput = FALSE)
+#### 1. Data/Result folder
+{
+  if(any(Sys.info()=="PGeo07m013.dmawi.de")) {
+    data_folder <- "/Volumes/projects/bioing/data/PathogenTransport/ViralMove_data"
+  }
+}
 
-library(sf); sf::sf_use_s2(FALSE)
-library(geosphere)
-#library(tidyverse)
-library(tidyr)
-library(dplyr)
-library(tibble)
+#### 2. Packages and functions
+{
+  library(Rcpp)
+  library(RcppArmadillo)
+  library(RcppProgress)
+  library(sf); sf::sf_use_s2(FALSE)
+  library(geosphere) ## To be removed
+  library(tidyr)
+  library(dplyr)
+  library(tibble)
+  
+  source("Analysis/OptimSPD/R/OptimSPD.R", echo=FALSE)
+  sourceCpp('Analysis/OptimSPD/src/OptimSPD_test.cpp', showOutput = FALSE)
+}
 
+#### 3. Load site parameters and empirical tracks
+{
+  load(glue::glue("{data_folder}/Data/Map/eaafMap.rda"))
+  load(glue::glue("{data_folder}/Data/breedTab_revision.rda"))
+  load(glue::glue("{data_folder}/Data/mudflatTab.rda"))
+  load(glue::glue("{data_folder}/Data/tempTab_revision.rda"))
+  load(glue::glue("{data_folder}/Results/empTrackList.rda"))
+}
 
-load("Data/Map/eaafMap.rda")
-load("Data/breedTab_revision.rda")
-load("Data/mudflatTab.rda")
-load("Data/tempTab_revision.rda")
-load("Results/empTrackList.rda")
-empTrackList <- empTrackList[c(1,2,3,4,6)]
+#### 4. Species
+{
+  sps <- c("Godwit", "RedKnot", "CurlewSandpiper", "RedNeckedStint")
+  empTrackList <- empTrackList[sapply(empTrackList, function(x) x[[3]]$species[1]) %in% sps]
+  
+  ## species
+  spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams), sps)
+  breedTab <- breedTab %>% filter(species%in%sps) %>% st_transform(4326)
+  
+  spCols   <- c("darkblue", "brown3", "darkgoldenrod2", "yellow2")
+}
 
-## species
-spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams), 
-                    c("Godwit", "RedKnot", "CurlewSandpiper", "RedNeckedStint"))
-breedTab <- breedTab %>% filter(species%in%names(spParms)) %>% st_transform(4326)
-spCols   <- c("darkblue", "cadetblue", "chartreuse4", "brown3", "darkgoldenrod2", "yellow2")
-
+#### 5. Simulation (past, present)
 allSpSim <- lapply(names(spParms), function(sp) {
   
   subBreedTab <- breedTab %>% filter(species == sp)
@@ -92,7 +114,7 @@ allSpSim <- lapply(names(spParms), function(sp) {
         tTab  = tempTab[size$index,,] - 2.5
       ))
     
-    parallel::mclapply(1:3, function(x) {
+    parallel::mclapply(1:2, function(x) {
       model   <- bwdIteration(sdpObjects[[x]])
       simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50)), error = function(e) NULL)
       simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = F)
@@ -103,19 +125,21 @@ allSpSim <- lapply(names(spParms), function(sp) {
     list(
     Reduce("+", lapply(indSim, function(ind) ind[[1]][[1]])[sapply(indSim, function(ind) class(ind[[1]][[1]])[1])=="matrix"]),
     Reduce("+", lapply(indSim, function(ind) ind[[2]][[1]])[sapply(indSim, function(ind) class(ind[[2]][[1]])[1])=="matrix"]),
-    Reduce("+", lapply(indSim, function(ind) ind[[3]][[1]])[sapply(indSim, function(ind) class(ind[[3]][[1]])[1])=="matrix"]),
+    # Reduce("+", lapply(indSim, function(ind) ind[[3]][[1]])[sapply(indSim, function(ind) class(ind[[3]][[1]])[1])=="matrix"]),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[1]][[2]], error = function(e) NULL))),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[2]][[2]], error = function(e) NULL))),
-    do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[3]][[2]], error = function(e) NULL))),
+    # do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[3]][[2]], error = function(e) NULL))),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[1]][[3]], error = function(e) NULL))),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[2]][[3]], error = function(e) NULL))),
-    do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[3]][[3]], error = function(e) NULL))),
+    # do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[3]][[3]], error = function(e) NULL))),
     do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[1]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
     do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[2]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
-    do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[3]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
+    # do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[3]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
     do.call("rbind", lapply(1:length(indSim), function(ind) rbind(tryCatch(tibble(t = 1, f = indSim[[ind]][[1]][[5]]), error = function(e) NULL), 
-                                                                  tryCatch(tibble(t = 2, f = indSim[[ind]][[2]][[5]]), error = function(e) NULL), 
-                                                                  tryCatch(tibble(t = 3, f = indSim[[ind]][[3]][[5]]), error = function(e) NULL))))
+                                                                  tryCatch(tibble(t = 2, f = indSim[[ind]][[2]][[5]]), error = function(e) NULL))))
+                                                                  # tryCatch(tibble(t = 3, f = indSim[[ind]][[3]][[5]]), error = function(e) NULL))))
     )
 })
-save(allSpSim, file = "allSpSim_Revision.rda")
+save(allSpSim, file = glue::glue("{data_folder}/Results/allSpSim.rda"))
+
+#### 6. Diagnostic plot(s)
