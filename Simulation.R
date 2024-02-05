@@ -9,6 +9,9 @@
   if(any(Sys.info()=="PGeo07m013.dmawi.de")) {
     data_folder <- "/Volumes/projects/bioing/data/PathogenTransport/ViralMove_data"
   }
+  if(any(Sys.info()=="linux4")) {
+    data_folder <- "/bioing/data/PathogenTransport/ViralMove_data"
+  }
 }
 
 #### 2. Packages and functions
