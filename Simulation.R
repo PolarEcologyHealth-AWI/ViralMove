@@ -138,3 +138,8 @@ allSpSim <- lapply(names(spParms), function(sp) {
 save(allSpSim, file = glue::glue("{data_folder}/Results/allSpSim.rda"))
 
 #### 6. Diagnostic plot(s)
+source("Analysis/Figure_Script.R")
+
+plotMigrationData (allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms) 
+
+plotMigrationDuration (allSpSim, spCols, breedTab, spParms)
