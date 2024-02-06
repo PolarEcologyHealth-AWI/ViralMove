@@ -38,6 +38,7 @@ arma::vec nTR_x;
 arma::vec nTR_y;
 arma::mat expend;
 arma::vec y_gain;
+arma::vec penalty;
 
 // Output
 arma::cube FMatrix;
@@ -288,12 +289,12 @@ double Foraging(const int& time,
   if (f1 <= f2)
   {
     sdp::Fintensity = u2;
-    Freward = f2;
+    Freward = f2 * sdp::penalty(site);
   }
   else //(f1 > f2)
   {
     sdp::Fintensity = u1;
-    Freward = f1;
+    Freward = f1 * sdp::penalty(site);
   }
   return Freward;
 } // end Foraging

@@ -48,6 +48,7 @@ sizeParams     <- function(lbm) {
   
   return(out)
 }
+
 Mat3Array      <- function(x) {
   
   rows = length(x)
@@ -65,6 +66,7 @@ Mat3Array      <- function(x) {
   }
   out 
 }
+
 CalcTR         <- function(x, t) {
   TR <- approx(parms$xFTReward, parms$yFTReward, t, rule = 3)$y
   s  <- parms$w * (x - parms$xc)
@@ -74,9 +76,9 @@ CalcTR         <- function(x, t) {
   }
   TR * SR + parms$B0
 }
+
 makeSDPobjects <- function(parms) {
-  
-  
+
   pmax <- apply(parms$sites %>% st_drop_geometry(), 1, function(x) pmax(x[3]+((x[5]*(1000000))/1000)*0.3, x[4]+((x[5]*(1000000))/1000)*0.3))
   hist <- apply(parms$sites %>% st_drop_geometry(), 1, function(x) x[3]+((x[5]*(1000000))/1000)*0.3)
   curr <- apply(parms$sites %>% st_drop_geometry(), 1, function(x) x[4]+((x[5]*(1000000))/1000)*0.3)
@@ -122,6 +124,9 @@ makeSDPobjects <- function(parms) {
   ## predation
   pred <- tibble(b0 = rep(parms$pred[1], nrow(intake)), b1 = parms$pred[2], b2 = parms$pred[3])
   
+  ## penalty
+  penalty <- 1-rep(parms$penalty, c(1, nrow(intake)-2, 1))
+  
   ### start site
   intake[1,4:5]  <- (parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ)
   pred[1,1]      <- pred[1,1]*0.1
@@ -162,7 +167,8 @@ makeSDPobjects <- function(parms) {
         pred_a1 =  parms$pred[4],
         pred_a2 =  parms$pred[5],
         expend  =  as.matrix(expend[,,x]),
-        gain    =  as.numeric(c(unlist(intake[,x+3])))
+        gain    =  as.numeric(c(unlist(intake[,x+3]))),
+        penalty =  as.numeric(penalty)
       ),
       Results = list(
         FitnessMatrix     = NA,
@@ -204,7 +210,8 @@ bwdIteration <- function(obj, pbar = FALSE) {
        as.matrix(obj@Sites$dist),
        as.matrix(obj@Sites$bear),
        obj@Sites$gain,
-       as.matrix(obj@Sites$expend))
+       as.matrix(obj@Sites$expend),
+       obj@Sites$penalty)
   
   out <- BackwardIteration(pbar = pbar)
   

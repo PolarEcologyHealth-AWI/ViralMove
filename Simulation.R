@@ -26,8 +26,8 @@
   library(dplyr)
   library(tibble)
   
-  source("Analysis/OptimSPD/R/OptimSPD.R", echo=FALSE)
-  sourceCpp('Analysis/OptimSPD/src/OptimSPD_test.cpp', showOutput = FALSE)
+  source("Analysis/OptimSDP/R/OptimSDP.R", echo=FALSE)
+  sourceCpp('Analysis/OptimSDP/src/OptimSDP.cpp', showOutput = FALSE)
 }
 
 #### 3. Load site parameters and empirical tracks
@@ -84,10 +84,6 @@ allSpSim <- lapply(names(spParms), function(sp) {
     distM  <- st_distance(size, by_element = F)/1000
     bearM  <- abs(distm(st_coordinates(size), fun = bearing))
     
-    # reward <- predict(lm(sn~year, data = tibble(year = c(1960, 2010),
-    #                                             sn = c(subBreedTab[ind,] %>% pull(start_hist),
-    #                                                    subBreedTab[ind,] %>% pull(start_curr)))),
-    #                   newdata = data.frame(year = c(1960, 2010, 2016))) %>% as.numeric() %>% round(0)
     ### Revision
     reward <- c(subBreedTab[ind,] %>% pull(start_hist), subBreedTab[ind,] %>% pull(start_curr),  subBreedTab[ind,] %>% pull(start_future))
     
@@ -110,9 +106,10 @@ allSpSim <- lapply(names(spParms), function(sp) {
         PStdNorm   = c(0.0092, 0.0279, 0.0655, 0.1210, 0.1747, 0.2034, 0.1747, 0.1210, 0.0655, 0.0279, 0.0092),
         reward     = reward,
         decError   = 250000,
-        pred  = c(1e-3, 1e-4, 1e-6, 2, 2),
-        sites = size,
-        latF  = 1,
+        pred    = c(1e-3, 1e-4, 1e-6, 2, 2),
+        sites   = size,
+        penalty = c(0, 0.0015, 0),
+        latF    = 1,
         dist  = distM,
         bear  = bearM,
         tTab  = tempTab[size$index,,] - 2.5
@@ -129,20 +126,14 @@ allSpSim <- lapply(names(spParms), function(sp) {
     list(
     Reduce("+", lapply(indSim, function(ind) ind[[1]][[1]])[sapply(indSim, function(ind) class(ind[[1]][[1]])[1])=="matrix"]),
     Reduce("+", lapply(indSim, function(ind) ind[[2]][[1]])[sapply(indSim, function(ind) class(ind[[2]][[1]])[1])=="matrix"]),
-    # Reduce("+", lapply(indSim, function(ind) ind[[3]][[1]])[sapply(indSim, function(ind) class(ind[[3]][[1]])[1])=="matrix"]),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[1]][[2]], error = function(e) NULL))),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[2]][[2]], error = function(e) NULL))),
-    # do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[3]][[2]], error = function(e) NULL))),
     do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[1]][[3]], error = function(e) NULL))),
-    do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[2]][[3]], error = function(e) NULL))),
-    # do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[3]][[3]], error = function(e) NULL))),
-    do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[1]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
+    do.call("rbind", lapply(indSim, function(ind) tryCatch(ind[[2]][[3]], error = function(e) NULL))),    do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[1]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
     do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[2]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
-    # do.call("rbind", lapply(1:length(indSim), function(ind) tryCatch(as_tibble(indSim[[ind]][[3]][[4]]) %>% setNames(c("id", "time", "site", "x")) %>% mutate(id = glue::glue("{ind}_{id}")), error = function(e) NULL))),
     do.call("rbind", lapply(1:length(indSim), function(ind) rbind(tryCatch(tibble(t = 1, f = indSim[[ind]][[1]][[5]]), error = function(e) NULL), 
-                                                                  tryCatch(tibble(t = 2, f = indSim[[ind]][[2]][[5]]), error = function(e) NULL))))
-                                                                  # tryCatch(tibble(t = 3, f = indSim[[ind]][[3]][[5]]), error = function(e) NULL))))
-    )
+                                                                  tryCatch(tibble(t = 2, f = indSim[[ind]][[2]][[5]]), error = function(e) NULL)))))
+    
 })
 save(allSpSim, file = glue::glue("{data_folder}/Results/allSpSim.rda"))
 
