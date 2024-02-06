@@ -10,7 +10,7 @@ library(ggplot2)
 ###################
 
 load(glue::glue("{data_folder}/Results/allSpSim.rda"))
-source("Analysis/OptimSPD/R/OptimSPD.R", echo=FALSE)
+source("Analysis/OptimSDP/R/OptimSDP.R", echo=FALSE)
 load(glue::glue("{data_folder}/Data/breedTab_revision.rda"))
 
 load(glue::glue("{data_folder}/Results/empTrackList.rda"))
@@ -45,7 +45,7 @@ for(spec in 1:length(allSpSim)) {
   spList <- allSpSim[[spInd]]
   
   ## relative time
-  relList <- do.call("rbind", lapply(0:1, function(x) bind_cols(spList[[x+3]], tibble(time = rep(x, nrow(spList[[x+3]])))))) %>%
+  relList <- do.call("rbind", lapply(1:2, function(x) bind_cols(spList[[x+2]], tibble(time = rep(x, nrow(spList[[x+2]])))))) %>%
     group_by(site, ts, time) %>% 
     summarise(sumDays = sum(days)) %>% 
     ungroup() ######## Why? formerly lapply(1:3,)
