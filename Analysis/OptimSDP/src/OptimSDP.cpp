@@ -387,7 +387,8 @@ void Init( int MinT,
            arma::mat dist,
            arma::mat bear,
            Rcpp::NumericVector y_gain,
-           arma::mat y_expend
+           arma::mat y_expend,
+           Rcpp::NumericVector penalty
 )
 {
   // Basic Parms
@@ -420,6 +421,7 @@ void Init( int MinT,
   sdp::bear   = bear;
   sdp::y_gain = y_gain;
   sdp::expend = y_expend;
+  sdp::penalty = penalty;
   
   sdp::Fintensity = 0.0;
 }
