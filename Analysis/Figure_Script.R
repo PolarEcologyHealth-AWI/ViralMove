@@ -21,16 +21,15 @@ spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams),
                     c("Godwit", "RedKnot", "CurlewSandpiper", "RedNeckedStint"))
 
 breedTab <- breedTab %>% filter(species%in%names(spParms)) %>% st_transform(4326)
-spCols   <- c("darkblue", "darkgoldenrod2", "chartreuse4", "brown3")
-
+spCols   <- c("darkblue", "chartreuse4", "brown3","darkgoldenrod2")
 
 #######################################
 ### Emperical network & Predictions ###
 #######################################
 
-plotMigrationData <- function(allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms) {
+plotMigrationData <- function(allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms, file_name) {
 marOpar <- c(4,32,5,1)
-pdf("Fig01_revision2.pdf", width = 20, height = 15)
+pdf(paste("/bioing/data/PathogenTransport/ViralMove_data/Figures/", file_name, ".pdf", sep = ""), width = 20, height = 15)
 opar <- par(mfrow = c(length(allSpSim),3), oma = c(0.5,0.5,0.5,0.5))
 
 

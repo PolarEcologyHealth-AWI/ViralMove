@@ -86,11 +86,11 @@ makeSDPobjects <- function(parms) {
   ## intake rates
   intake <- tibble(index = parms$site$index,
                    hist = approx(range(pmax, na.rm = T), 
-                                 c(0.5, 1.5), hist)$y,
+                                 parms$inScale, hist)$y,
                    curr = approx(range(pmax, na.rm = T), 
-                                 c(0.5, 1.5), curr)$y) %>%
-    mutate(hist = ifelse(parms$species=="RedNeckedStint" & hist<1.25 & parms$sites$lake, 1.25, hist), 
-           curr = ifelse(parms$species=="RedNeckedStint" & curr<1.25 & parms$sites$lake, 1.25, curr),
+                                 parms$inScale, curr)$y) %>%
+    mutate(hist = ifelse(parms$species=="RedNeckedStint" & hist<max(parms$inScale)-0.25 & parms$sites$lake, max(parms$inScale)-0.25, hist), 
+           curr = ifelse(parms$species=="RedNeckedStint" & curr<max(parms$inScale)-0.25 & parms$sites$lake, max(parms$inScale)-0.25, curr),
            intHist = hist * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ,
            intCurr = curr * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ)
 
