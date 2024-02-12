@@ -82,6 +82,7 @@ makeSDPobjects <- function(parms) {
   pmax <- apply(parms$sites %>% st_drop_geometry(), 1, function(x) pmax(x[3]+((x[5]*(1000000))/1000)*0.3, x[4]+((x[5]*(1000000))/1000)*0.3))
   hist <- apply(parms$sites %>% st_drop_geometry(), 1, function(x) x[3]+((x[5]*(1000000))/1000)*0.3)
   curr <- apply(parms$sites %>% st_drop_geometry(), 1, function(x) x[4]+((x[5]*(1000000))/1000)*0.3)
+  
   ## intake rates
   intake <- tibble(index = parms$site$index,
                    hist = approx(range(pmax, na.rm = T), 
@@ -96,8 +97,8 @@ makeSDPobjects <- function(parms) {
   # future intake
   intake$intFut <- apply(intake %>% dplyr::select(intHist, intCurr) %>% as.matrix(), 1, function(x) {
     if(any(is.na(x))) max(x, na.rm = T) else predict(lm(intake~years, data = tibble(years = c(1960, 2010), intake = c(x))), newdata = data.frame(years = 2060))
-  })
-  # 
+  }) %>% suppressWarnings()
+   
   ### Latitude EIR relationship
   intake <- intake %>% mutate(intHist = intHist * approx(seq(0,90, length = 100), as.numeric(parms$latF)^c(seq(0,1, length = 100)), abs((parms$site %>% st_coordinates())[,2]))$y,
                               intCurr = intCurr * approx(seq(0,90, length = 100), as.numeric(parms$latF)^c(seq(0,1, length = 100)), abs((parms$site %>% st_coordinates())[,2]))$y,
