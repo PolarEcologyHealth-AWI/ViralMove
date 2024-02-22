@@ -29,7 +29,7 @@ spCols   <- c("darkblue", "chartreuse4", "brown3","darkgoldenrod2")
 
 plotMigrationData <- function(allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms, file_name) {
 marOpar <- c(4,32,5,1)
-pdf(paste("/bioing/data/PathogenTransport/ViralMove_data/Figures/", file_name, ".pdf", sep = ""), width = 20, height = 15)
+pdf(paste("/bioing/data/PathogenTransport/ViralMove_data/Figures/Southward/", file_name, ".pdf", sep = ""), width = 20, height = 15)
 opar <- par(mfrow = c(length(allSpSim),3), oma = c(0.5,0.5,0.5,0.5))
 
 

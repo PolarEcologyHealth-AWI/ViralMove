@@ -86,19 +86,19 @@ makeSDPobjects <- function(parms) {
   ## intake rates
   intake <- tibble(index = parms$site$index,
                    hist = approx(range(pmax, na.rm = T), 
-                                 parms$inScale, hist)$y,
+                                 c(parms$inScale[1], parms$inScale[2]), hist)$y,
                    curr = approx(range(pmax, na.rm = T), 
-                                 parms$inScale, curr)$y) %>%
-    mutate(hist = ifelse(parms$species=="RedNeckedStint" & hist<max(parms$inScale)-0.25 & parms$sites$lake, max(parms$inScale)-0.25, hist), 
-           curr = ifelse(parms$species=="RedNeckedStint" & curr<max(parms$inScale)-0.25 & parms$sites$lake, max(parms$inScale)-0.25, curr),
+                                 c(parms$inScale[1], parms$inScale[2]), curr)$y) %>%
+    mutate(hist = ifelse(parms$species=="RedNeckedStint" & hist< (parms$inScale[2]-0.25) & parms$sites$lake,(parms$inScale[2]-0.25), hist), 
+           curr = ifelse(parms$species=="RedNeckedStint" & curr<(parms$inScale[2]-0.25) & parms$sites$lake, (parms$inScale[2]-0.25), curr),
            intHist = hist * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ,
            intCurr = curr * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ)
-
+  
   # future intake
   intake$intFut <- apply(intake %>% dplyr::select(intHist, intCurr) %>% as.matrix(), 1, function(x) {
     if(any(is.na(x))) max(x, na.rm = T) else predict(lm(intake~years, data = tibble(years = c(1960, 2010), intake = c(x))), newdata = data.frame(years = 2060))
   }) %>% suppressWarnings()
-   
+  
   ### Latitude EIR relationship
   intake <- intake %>% mutate(intHist = intHist * approx(seq(0,90, length = 100), as.numeric(parms$latF)^c(seq(0,1, length = 100)), abs((parms$site %>% st_coordinates())[,2]))$y,
                               intCurr = intCurr * approx(seq(0,90, length = 100), as.numeric(parms$latF)^c(seq(0,1, length = 100)), abs((parms$site %>% st_coordinates())[,2]))$y,
@@ -153,8 +153,10 @@ makeSDPobjects <- function(parms) {
         WindProb   = parms$WindProb,
         ZStdNorm = parms$ZStdNorm,
         PStdNorm = parms$PStdNorm,
-        xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-1, parms$reward[x], parms$reward[x]+10, parms$reward[x]+11)), parms$maxT) - parms$minT)),
-        yFTReward  = c(0,0,2,2,0,0),
+        xFTReward  = if (dir == 1) {as.numeric(c(0, c(unlist(c(parms$reward[x]-1, parms$reward[x], parms$reward[x]+10, parms$reward[x]+11)), parms$maxT) - parms$minT))
+        }else {sort(as.numeric(c(0, round(rnorm(5, mean = 269.450980 , sd = 20.744301))))) } ,
+        yFTReward  = if (dir == 1) {c(0,0,2,2,0,0)
+        }else{c(0,0.25,0.75,1,0.75, 0.25,0)},
         decError   = parms$decError
       ),
       Sites = list(
