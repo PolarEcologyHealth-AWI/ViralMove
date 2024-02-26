@@ -9,6 +9,7 @@ namespace sdp {
 
 
 // Init
+int direction;
 int MinT;
 int MaxT;
 int NSites;
@@ -363,7 +364,8 @@ double Flying(
 
 
 // [[Rcpp::export]]
-void Init( int MinT,
+void Init( int direction,
+           int MinT,
            int MaxT,
            int NSites,
            int MaxX,
@@ -392,6 +394,7 @@ void Init( int MinT,
 )
 {
   // Basic Parms
+  sdp::direction = direction;
   sdp::MinT   = MinT;
   sdp::MaxT   = MaxT;
   sdp::NSites = NSites;
@@ -488,7 +491,7 @@ Rcpp::List BackwardIteration(bool pbar) {
 
         for (int dest = 0; dest <= sdp::NSites; ++dest)
         {
-          if(sdp::bear(dest, site)>80) {
+          if((sdp::direction<2 && sdp::bear(dest, site)>80) || (sdp::direction>1 && sdp::bear(dest, site)<80)) {
             float help_z = Flying(time, site, x, dest);
             if(dest == site) help_z = 0;
             Mrew[dest] = help_z;

@@ -134,10 +134,20 @@ makeSDPobjects <- function(parms) {
   pred[1,2]      <- pred[1,2]*0.1
   pred[1,3]      <- pred[1,3]*0.1
   
+  ### Rewards
+  if(parms$direction==1) {
+    xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-1, parms$reward[x], parms$reward[x]+10, parms$reward[x]+11)), parms$maxT) - parms$minT))
+    yFTReward  = c(0,0,2,2,0,0)
+  } else {
+    xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-10, parms$reward[x]-2, parms$reward[x]+2, parms$reward[x]+10)), parms$maxT) - parms$minT))
+    yFTReward  = c(0,0,2,2,0,0)
+  }
+  
   lapply(1:3, function(x) {
     new(
       "SDPMig",
       Init  = list(
+        direction = parms$direction,
         MinT   = parms$minT,
         MaxT   = parms$maxT,
         NSites = nrow(intake)-1,
@@ -153,10 +163,8 @@ makeSDPobjects <- function(parms) {
         WindProb   = parms$WindProb,
         ZStdNorm = parms$ZStdNorm,
         PStdNorm = parms$PStdNorm,
-        xFTReward  = if (dir == 1) {as.numeric(c(0, c(unlist(c(parms$reward[x]-1, parms$reward[x], parms$reward[x]+10, parms$reward[x]+11)), parms$maxT) - parms$minT))
-        }else {sort(as.numeric(c(0, round(rnorm(5, mean = 269.450980 , sd = 20.744301))))) } ,
-        yFTReward  = if (dir == 1) {c(0,0,2,2,0,0)
-        }else{c(0,0.25,0.75,1,0.75, 0.25,0)},
+        xFTReward  = xFTReward,
+        yFTReward  = yFTReward,
         decError   = parms$decError
       ),
       Sites = list(
@@ -189,7 +197,8 @@ makeSDPobjects <- function(parms) {
 
 bwdIteration <- function(obj, pbar = FALSE) {
   
-  Init(obj@Init$MinT, 
+  Init(obj@Init$direction,
+       obj@Init$MinT, 
        obj@Init$MaxT, 
        obj@Init$NSites, 
        obj@Init$MaxX,
@@ -364,7 +373,7 @@ pltNetwork <- function(simu, model, map = eaafMap) {
   
   transT <- as.data.frame(table(apply(do.call("rbind", apply(trkS, 1, function(x) {
     tmp01 <- cbind(x[!is.na(x)][-sum(!is.na(x))], x[!is.na(x)][-1])
-    as.data.frame(tmp01[tmp01[,1]!=tmp01[,2] & !is.na(tmp01[,1]) & !is.na(tmp01[,2]),])
+    as.data.frame(matrix(tmp01[tmp01[,1]!=tmp01[,2] & !is.na(tmp01[,1]) & !is.na(tmp01[,2]),], ncol = 2))
   })), 1, function(y) paste(y, collapse = "_"))))
   trans <- cbind(t(apply(transT, 1, function(z) as.numeric(strsplit(z[1], "_")[[1]]))), transT[,2])
   
@@ -437,7 +446,7 @@ simNetwork <- function(simu, model, crds_ind, map = eaafMap, plot = FALSE) {
   transTab <- apply(trkS, 1, function(y) {
     tmp00 <- model@Sites$index[y[!is.na(y)][max(which(y[!is.na(y)]==1)):min(which(y[!is.na(y)]==max(y[!is.na(y)])))]]
     tmp01 <- cbind(tmp00[!is.na(tmp00)][-sum(!is.na(tmp00))], tmp00[!is.na(tmp00)][-1])
-    as.data.frame(tmp01[tmp01[,1]!=tmp01[,2] & !is.na(tmp01[,1]) & !is.na(tmp01[,2]),])
+    as.data.frame(matrix(tmp01[tmp01[,1]!=tmp01[,2] & !is.na(tmp01[,1]) & !is.na(tmp01[,2]),], ncol = 2))
   }) %>% do.call("rbind",.) %>% setNames(c("a", "b")) %>% group_by(a, b) %>% summarise(count = n())
   
   trans <- matrix(0, ncol = length(sites), nrow = length(sites))

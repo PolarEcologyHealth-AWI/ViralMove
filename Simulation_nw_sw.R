@@ -110,23 +110,28 @@ for(run in 1:nrow(sim_list)) {
       bearM  <- abs(distm(st_coordinates(size), fun = bearing))
       
       ### Revision
-      reward <- c(subBreedTab[ind,] %>% pull(start_hist), subBreedTab[ind,] %>% pull(start_curr),  subBreedTab[ind,] %>% pull(start_future))
+      if(dir==1) {
+        reward <- c(subBreedTab[ind,] %>% pull(start_hist), subBreedTab[ind,] %>% pull(start_curr),  subBreedTab[ind,] %>% pull(start_future))
+      } else {
+        reward <- rep(as.numeric(format(as.POSIXct(subBreedTab[ind,] %>% pull(Arrival)), "%j")),3)
+      }
       
       #######################
       ### sdp Objects #######
       #######################
       sdpObjects <- makeSDPobjects(
         list(
-          species = subBreedTab$species[ind],
-          spParms = spParms[[which(names(spParms)==sp)]],
-          minT    =  if (dir ==1) {as.numeric(format(as.POSIXct("2012-01-01"), "%j"))
-          } else {yday(subBreedTab[ind,] %>% pull(Departure_breed)) - 15},
-          maxT    = if (dir ==1) {subBreedTab[ind,] %>% pull(start_hist) + 15
-          }else {yday(subBreedTab[ind,] %>% pull(Arrival)) + 15},
-          MaxX    = 100,
-          B0      = 3,
-          w       = 0.028,
-          xc      = 10,
+          direction = dir,
+          species   = subBreedTab$species[ind],
+          spParms   = spParms[[which(names(spParms)==sp)]],
+          minT      =  if (dir ==1) {as.numeric(format(as.POSIXct("2012-01-01"), "%j"))
+                     } else {yday(subBreedTab[ind,] %>% pull(Departure_breed))},
+          maxT      = if (dir ==1) {subBreedTab[ind,] %>% pull(start_hist) + 15
+                     }else {yday(subBreedTab[ind,] %>% pull(Arrival)) + 15},
+          MaxX      = 100,
+          B0        = 3,
+          w         = 0.0028, ## 0.028 for nm
+          xc        = 1, ## 10 for nm
           WindAssist = 0,
           WindProb   = 1,
           ZStdNorm   = c(-2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0,  2.5),
@@ -145,8 +150,10 @@ for(run in 1:nrow(sim_list)) {
       
       parallel::mclapply(1:2, function(x) {
         model   <- bwdIteration(sdpObjects[[x]])
-        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50)), error = function(e) NULL)
-        simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = F)
+        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(90,95)), error = function(e) NULL)
+        condProfile(simu, model)
+        matplot(model@Results$FitnessMatrix[,400,], type = 'o', col = 'grey80', pch = 16)
+        simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)
       }, mc.cores = 2)
       
     }, mc.cores = 8)
@@ -168,9 +175,9 @@ for(run in 1:nrow(sim_list)) {
 
   #### 6. Diagnostic plot(s)
   
-  # source("Analysis/Figure_Script.R", echo= FALSE)
-  # load(glue::glue("{data_folder}/Results/Southward/allSpSim_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}_SW.rda"))
-  # plotMigrationData (allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms, 
-  #                    glue::glue("fig_pen_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}.pdf")) 
+  source("Analysis/Figure_Script.R", echo= FALSE)
+  load(glue::glue("{data_folder}/Results/Southward/allSpSim_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}_SW.rda"))
+  plotMigrationData (allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms,
+                     glue::glue("fig_pen_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}.pdf"))
 
 }
