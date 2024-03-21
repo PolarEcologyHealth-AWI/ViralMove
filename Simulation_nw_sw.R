@@ -32,19 +32,27 @@
 }
 
 #### 3. Load site parameters and empirical tracks
+
+#set direction -> 1 = NW, 2= SW
+
+dir <- 2 
+
+
 {
   load(glue::glue("{data_folder}/Data/Map/eaafMap.rda"))
-  load(glue::glue("{data_folder}/Data/breedTab_revision.rda"))
+  load(glue::glue("{data_folder}/Data/breedTab_revision.rda")) #load(glue::glue("{data_folder}/Data/breedTab_all.rda"))
   load(glue::glue("{data_folder}/Data/mudflatTab.rda"))
   load(glue::glue("{data_folder}/Data/tempTab_revision.rda"))
-  load(glue::glue("{data_folder}/Results/empTrackList.rda"))  
+if(dir == 1) {load(glue::glue("{data_folder}/Results/empTrackListNW.rda"))
+  }else {load(glue::glue("{data_folder}/Results/empTrackListSM.rda"))}
   load(glue::glue("{data_folder}/Data/phenology_tracks.RData"))
 }
 
 #### 4. Species
 {
   sps <- c("Godwit", "RedKnot", "CurlewSandpiper", "RedNeckedStint")
-  empTrackList <- empTrackList[sapply(empTrackList, function(x) x[[3]]$species[1]) %in% sps]
+  empTrackList <- if (dir == 1) {empTrackListNW
+    }else {empTrackListSM}
   
   ## species
   spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams), sps)
@@ -55,6 +63,8 @@
   spCols   <- c("darkblue", "brown3", "darkgoldenrod2", "yellow2")
 }
 
+#pen 0.0012, lat 1,3-1,6, int = 1 -> run =22
+
 penSeq <- seq(0, 0.002, length = 6)
 intSeq <- matrix(c(0.25, 0.5, 0.75, 1, 1.25, 1.5), nrow = 3)
 latSeq <- seq(1, 2, length = 4)
@@ -63,15 +73,20 @@ sim_list <- expand.grid(pen = 1:length(penSeq),
                    int = 1:nrow(intSeq),
                    lat = 1:length(latSeq))
 
-for(run in 1:nrow(sim_list)) {
+start_x_seq <- matrix(c(50,60,70,80,90,60,70,80,90, 100), nrow = 5)
+
+for (var in 1:4) {
+ 
+
+for(run in 22:22) { #no. 22,29 did not run 
 
   #### 5. Simulation (past, present)
-  dir <- 2
   
-  if(dir == 2){breedTab <- breedTab %>% filter (!is.na(Arrival))
-    } else {}
-  
+
   allSpSim <- lapply(names(spParms), function(sp) {
+    
+    if(dir == 2){breedTab <- breedTab %>% filter (!is.na(Arrival))
+    } else {}
     
     subBreedTab <- breedTab %>% filter(species == sp)
     
@@ -150,13 +165,13 @@ for(run in 1:nrow(sim_list)) {
       
       parallel::mclapply(1:2, function(x) {
         model   <- bwdIteration(sdpObjects[[x]])
-        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(90,95)), error = function(e) NULL)
+        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = start_x_seq[var,]), error = function(e) NULL)
         condProfile(simu, model)
         matplot(model@Results$FitnessMatrix[,400,], type = 'o', col = 'grey80', pch = 16)
         simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)
       }, mc.cores = 2)
       
-    }, mc.cores = 8)
+    }, mc.cores = 11)
     
     list(
       Reduce("+", lapply(indSim, function(ind) ind[[1]][[1]])[sapply(indSim, function(ind) class(ind[[1]][[1]])[1])=="matrix"]),
@@ -170,14 +185,14 @@ for(run in 1:nrow(sim_list)) {
                                                                     tryCatch(tibble(t = 2, f = indSim[[ind]][[2]][[5]]), error = function(e) NULL)))))
     
   })
-  save(allSpSim, file = glue::glue("{data_folder}/Results/Southward/allSpSim_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}_SW.rda"))
+  save(allSpSim, file = glue::glue("{data_folder}/Results/Southward/allSpSim_startx_{start_x_seq[var]}.rda"))
   
 
   #### 6. Diagnostic plot(s)
   
   source("Analysis/Figure_Script.R", echo= FALSE)
-  load(glue::glue("{data_folder}/Results/Southward/allSpSim_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}_SW.rda"))
+  load(glue::glue("{data_folder}/Results/Southward/allSpSim_startx_{start_x_seq[var]}.rda"))
   plotMigrationData (allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms,
-                     glue::glue("fig_pen_{penSeq[sim_list[run,1]]}_int_{intSeq[sim_list[run,2],2]}_lat_{latSeq[sim_list[run,3]]}.pdf"))
+                     glue::glue("startx_{start_x_seq[var]}.pdf"))
 
-}
+}}

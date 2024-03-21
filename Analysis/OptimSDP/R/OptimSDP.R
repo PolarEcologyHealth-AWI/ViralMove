@@ -89,8 +89,8 @@ makeSDPobjects <- function(parms) {
                                  c(parms$inScale[1], parms$inScale[2]), hist)$y,
                    curr = approx(range(pmax, na.rm = T), 
                                  c(parms$inScale[1], parms$inScale[2]), curr)$y) %>%
-    mutate(hist = ifelse(parms$species=="RedNeckedStint" & hist< (parms$inScale[2]-0.25) & parms$sites$lake,(parms$inScale[2]-0.25), hist), 
-           curr = ifelse(parms$species=="RedNeckedStint" & curr<(parms$inScale[2]-0.25) & parms$sites$lake, (parms$inScale[2]-0.25), curr),
+    mutate(hist = ifelse(parms$species%in%c("RedNeckedStint", "CurlewSandpiper") & hist< (parms$inScale[2]-0.25) & parms$sites$lake,(parms$inScale[2]-0.25), hist), 
+           curr = ifelse(parms$species%in%c("RedNeckedStint", "CurlewSandpiper") & curr<(parms$inScale[2]-0.25) & parms$sites$lake, (parms$inScale[2]-0.25), curr),
            intHist = hist * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ,
            intCurr = curr * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ)
   
@@ -133,17 +133,21 @@ makeSDPobjects <- function(parms) {
   pred[1,1]      <- pred[1,1]*0.1
   pred[1,2]      <- pred[1,2]*0.1
   pred[1,3]      <- pred[1,3]*0.1
+
   
-  ### Rewards
-  if(parms$direction==1) {
-    xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-1, parms$reward[x], parms$reward[x]+10, parms$reward[x]+11)), parms$maxT) - parms$minT))
-    yFTReward  = c(0,0,2,2,0,0)
-  } else {
-    xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-10, parms$reward[x]-2, parms$reward[x]+2, parms$reward[x]+10)), parms$maxT) - parms$minT))
-    yFTReward  = c(0,0,2,2,0,0)
-  }
   
   lapply(1:3, function(x) {
+    
+    ### Rewards
+    
+    if(parms$direction==1) {
+      xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-1, parms$reward[x], parms$reward[x]+10, parms$reward[x]+11)), parms$maxT) - parms$minT))
+      yFTReward  = c(0,0,2,2,0,0)
+    } else {
+      xFTReward  = as.numeric(c(0, c(unlist(c(parms$reward[x]-10, parms$reward[x]-2, parms$reward[x]+2, parms$reward[x]+10)), parms$maxT) - parms$minT))
+      yFTReward  = c(0,0,2,2,0,0)
+      }
+    
     new(
       "SDPMig",
       Init  = list(

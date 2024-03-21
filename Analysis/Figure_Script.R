@@ -13,14 +13,18 @@ load(glue::glue("{data_folder}/Results/allSpSim.rda"))
 source("Analysis/OptimSDP/R/OptimSDP.R", echo=FALSE)
 load(glue::glue("{data_folder}/Data/breedTab_revision.rda"))
 
-load(glue::glue("{data_folder}/Results/empTrackList.rda"))
-empTrackList <- empTrackList[c(1,3,4,6)]
+if(dir == 1) {load(glue::glue("{data_folder}/Results/empTrackListNW.rda"))
+}else {load(glue::glue("{data_folder}/Results/empTrackListSM.rda"))}
+
+empTrackList <- if (dir == 1) {empTrackListNW
+}else {empTrackListSM}
 
 ## species
-spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams), 
-                    c("Godwit", "RedKnot", "CurlewSandpiper", "RedNeckedStint"))
+spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams), sps)
+breedTab <- breedTab %>% filter(species%in%sps) %>% st_transform(4326) %>%
+  dplyr::select(-dep, -arr, -arr_breed) %>%
+  left_join(phen %>% dplyr::select(-Species), by = join_by(id==ID))
 
-breedTab <- breedTab %>% filter(species%in%names(spParms)) %>% st_transform(4326)
 spCols   <- c("darkblue", "chartreuse4", "brown3","darkgoldenrod2")
 
 #######################################
