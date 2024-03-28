@@ -89,8 +89,8 @@ makeSDPobjects <- function(parms) {
                                  c(parms$inScale[1], parms$inScale[2]), hist)$y,
                    curr = approx(range(pmax, na.rm = T), 
                                  c(parms$inScale[1], parms$inScale[2]), curr)$y) %>%
-    mutate(hist = ifelse(parms$species%in%c("RedNeckedStint", "CurlewSandpiper") & hist< (parms$inScale[2]-0.25) & parms$sites$lake,(parms$inScale[2]-0.25), hist), 
-           curr = ifelse(parms$species%in%c("RedNeckedStint", "CurlewSandpiper") & curr<(parms$inScale[2]-0.25) & parms$sites$lake, (parms$inScale[2]-0.25), curr),
+    mutate(hist = ifelse(parms$species%in%c("RedNeckedStint", "CurlewSandpiper") & hist< (parms$inScale[2]-0.4) & parms$sites$lake,(parms$inScale[2]-0.4), hist), 
+           curr = ifelse(parms$species%in%c("RedNeckedStint", "CurlewSandpiper") & curr<(parms$inScale[2]-0.4) & parms$sites$lake, (parms$inScale[2]-0.4), curr),
            intHist = hist * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ,
            intCurr = curr * parms$spParms$FDRx + parms$spParms$EEFnc(parms$spParms$Kesm)/parms$spParms$X1xkJ)
   

@@ -56,68 +56,99 @@ if(dir == 1) {load(glue::glue("{data_folder}/Results/empTrackListNW.rda"))
   
   ## species
   spParms <- setNames(lapply(c(250, 105, 55, 25), sizeParams), sps)
-  breedTab <- breedTab %>% filter(species%in%sps) %>% st_transform(4326) %>%
-    dplyr::select(-dep, -arr, -arr_breed) %>%
-    left_join(phen %>% dplyr::select(-Species), by = join_by(id==ID))
+  # breedTab <- breedTab %>% filter(species%in%sps) %>% st_transform(4326) %>%
+  #   dplyr::select(-dep, -arr, -arr_breed) %>%
+  #   left_join(phen %>% dplyr::select(-Species), by = join_by(id==ID))
   
-  spCols   <- c("darkblue", "brown3", "darkgoldenrod2", "yellow2")
+  spCols   <- c("darkblue", "chartreuse4", "brown3","darkgoldenrod2")
 }
+
+# test <- simulation_list %>%
+#         filter(sp %in% c("Limosa lapponica", "Calidris ruficollis", "Calidris canutus", "Calidris ferruginea")) %>%
+#         lapply(1:nrow(test), function (x) { out <- test[x,]
+#         out <- out %>% mutate(sp = ifelse (sp == "Limosa lapponica", "Godwit", ifelse ( sp == "Calidris ruficollis", "RedNeckedStint", ifelse ( sp == "Calidris canutus", "RedKnot", "CurlewSandpiper"))))
+#         return(out)}) %>% rename ( species = sp) %>% bind_rows()
+# simulation_list <- test
+# save(simulation_list, file = glue::glue("{data_folder}/Data/simulation_list.RData"))
+
+load(glue::glue("{data_folder}/Data/simulation_list.RData"))
+load(glue::glue("{data_folder}/Data/arrivalTab_NW.RData"))
 
 #pen 0.0012, lat 1,3-1,6, int = 1 -> run =22
 
-penSeq <- seq(0, 0.002, length = 6)
-intSeq <- matrix(c(0.25, 0.5, 0.75, 1, 1.25, 1.5), nrow = 3)
-latSeq <- seq(1, 2, length = 4)
+# penSeq <- seq(0, 0.002, length = 6)
+# intSeq <- matrix(c(0.25, 0.5, 0.75, 1, 1.25, 1.5), nrow = 3)
+# latSeq <- seq(1, 2, length = 4)
+# 
+# sim_list <- expand.grid(pen = 1:length(penSeq),
+#                    int = 1:nrow(intSeq),
+#                    lat = 1:length(latSeq))
+# 
+# start_x_seq <- matrix(c(50,60,70,80,90,60,70,80,90, 100), nrow = 5)
 
-sim_list <- expand.grid(pen = 1:length(penSeq),
-                   int = 1:nrow(intSeq),
-                   lat = 1:length(latSeq))
 
-start_x_seq <- matrix(c(50,60,70,80,90,60,70,80,90, 100), nrow = 5)
-
-for (var in 1:1) {
  
 
-for(run in 22:22) { #no. 22,29 did not run 
+
 
   #### 5. Simulation (past, present)
   
-
-  allSpSim <- lapply(names(spParms), function(sp) {
+allSpSim <- lapply(names(spParms)[4], function(sp) {
     
-    if(dir == 2){breedTab <- breedTab %>% filter (!is.na(Arrival))
-    } else {}
+    # if(dir == 2){breedTab <- breedTab %>% filter (!is.na(Arrival))
+    # } else {}
     
-    subBreedTab <- breedTab %>% filter(species == sp)
+    subBreedTab <- simulation_list %>% filter(species == sp) ## RNS ind = 1999
     
     indSim <- parallel::mclapply(1:nrow(subBreedTab), function(ind) {
       
       #######################
       ### site parameters ###
       #######################
-      StartEnd_cell <- if (dir == 1) { tibble(lon = c(subBreedTab[ind,] %>% pull("lon_start"), st_coordinates(subBreedTab)[ind,1]),
-                                              lat = c(subBreedTab[ind,] %>% pull("lat_start"), st_coordinates(subBreedTab)[ind,2])) %>%
-          st_as_sf(coords = c("lon", "lat")) %>% st_set_crs(4326) %>% rowwise() %>%
-          mutate(index = which.min(st_distance(geometry, mudflatTab %>% st_transform(4326)))) 
-      } else { tibble(lon = c(st_coordinates(subBreedTab)[ind,1], subBreedTab[ind,] %>% pull("lon_start")),
-                      lat = c(st_coordinates(subBreedTab)[ind,2], subBreedTab[ind,] %>% pull("lat_start"))) %>%
-          st_as_sf(coords = c("lon", "lat")) %>% st_set_crs(4326) %>% rowwise() %>%
-          mutate(index = which.min(st_distance(geometry, mudflatTab %>% st_transform(4326)))) 
-      }
+      # StartEnd_cell <- if (dir == 1) { tibble(loc = c(mudflatTab$geometry[subBreedTab$winter_id[ind]]%>% st_centroid(), mudflatTab$geometry[subBreedTab$breeding_id[ind]] %>% st_centroid()),
+      #                                         index = c(subBreedTab$winter_id[ind], subBreedTab$breeding_id[ind]))
+      # } else { tibble( loc = c(mudflatTab$geometry[subBreedTab$breeding_id[ind]]%>% st_centroid(), mudflatTab$geometry[subBreedTab$wintering_id[ind]] %>% st_centroid()),
+      #                  index = c(subBreedTab$breeding_id[ind], subBreedTab$winter_id[ind]))
+      # }
+      # 
+      # 
+      # size     <- mudflatTab %>% st_centroid() %>% st_transform(4326) %>%
+      #                mutate(areaHist = ifelse(is.na(histArea_inner), currArea_outer, histArea_outer),
+      #                       areaCurr = currArea_outer,
+      #                       areaMang = mangArea_outer,
+      #                       lake     = ifelse(is.na(lake_area), FALSE, TRUE),
+      #                       pmax     = pmax(areaCurr, areaHist)) %>% 
+      #                dplyr::select(pmax, areaHist, areaCurr, areaMang, lake) %>%
+      #                rownames_to_column(var = "index") %>% mutate(index = as.integer(index))%>%
+      #   filter((areaHist>0 | areaCurr>0 | areaMang>0 | lake)) %>%
+      #   filter(st_coordinates(.)[,1] > 104 | st_coordinates(.)[,1] < -150) %>% 
+      #   arrange(st_distance(geometry, geometry[StartEnd_cell$index[1]])) %>%
+      #   bind_rows(StartEnd_cell[2,] %>% mutate(areaHist = NA, areaCurr = NA, areaMang = NA, lake = FALSE) %>% dplyr::select(names(.))) %>%
+      #   relocate(geometry, .after = last_col()) %>%
+      #   suppressWarnings()
       
+      StartEnd_cell <- if ( dir == 1){mudflatTab[c(subBreedTab$winter_id[ind], subBreedTab$breeding_id[ind]),] %>% st_centroid() %>% st_transform(4326) %>% st_coordinates() %>%
+        as_tibble() %>% setNames(c('lon', 'lat')) %>%
+        st_as_sf(coords = c("lon", "lat")) %>% st_set_crs(4326)
+      }else{
+        mudflatTab[c(subBreedTab$breedind_id[ind], subBreedTab$winter_id[ind]),] %>% st_centroid() %>% st_transform(4326) %>% st_coordinates() %>%
+          as_tibble() %>% setNames(c('lon', 'lat')) %>%
+          st_as_sf(coords = c("lon", "lat")) %>% st_set_crs(4326)
+        
+      }
       
       size     <- (mudflatTab %>% st_centroid() %>% st_transform(4326) %>%
                      mutate(areaHist = ifelse(is.na(histArea_inner), currArea_outer, histArea_outer),
                             areaCurr = currArea_outer,
                             areaMang = mangArea_outer,
                             lake     = ifelse(is.na(lake_area), FALSE, TRUE),
-                            pmax     = pmax(areaCurr, areaHist)) %>% 
+                            pmax     = pmax(areaCurr, areaHist)) %>%
                      dplyr::select(pmax, areaHist, areaCurr, areaMang, lake) %>%
                      rownames_to_column(var = "index") %>% mutate(index = as.integer(index))) %>%
         filter((areaHist>0 | areaCurr>0 | areaMang>0 | lake)) %>%
-        filter(st_coordinates(.)[,1] > 104 | st_coordinates(.)[,1] < -150) %>% 
+        filter(st_coordinates(.)[,1] > 104 | st_coordinates(.)[,1] < -150)  %>%
         arrange(st_distance(geometry, StartEnd_cell[1,])) %>%
-        bind_rows(StartEnd_cell[2,] %>% mutate(areaHist = NA, areaCurr = NA, areaMang = NA, lake = FALSE) %>% dplyr::select(names(.))) %>%
+        bind_rows(StartEnd_cell[2,] %>% mutate(index = subBreedTab$breeding_id[ind], areaHist = 0, areaCurr = 0, areaMang = NA, lake = FALSE) %>% dplyr::select(names(.))) %>%
         relocate(geometry, .after = last_col()) %>%
         suppressWarnings()
       
@@ -126,7 +157,8 @@ for(run in 22:22) { #no. 22,29 did not run
       
       ### Revision
       if(dir==1) {
-        reward <- c(subBreedTab[ind,] %>% pull(start_hist), subBreedTab[ind,] %>% pull(start_curr),  subBreedTab[ind,] %>% pull(start_future))
+        reward <- c(arrivalTab[arrivalTab$index %in% subBreedTab$breeding_id[ind], ] %>% pull(arrival_hist), 
+                    arrivalTab[arrivalTab$index %in% subBreedTab$breeding_id[ind], ] %>% pull(arrival_curr))
       } else {
         reward <- rep(as.numeric(format(as.POSIXct(subBreedTab[ind,] %>% pull(Arrival)), "%j")),3)
       }
@@ -141,12 +173,12 @@ for(run in 22:22) { #no. 22,29 did not run
           spParms   = spParms[[which(names(spParms)==sp)]],
           minT      =  if (dir ==1) {as.numeric(format(as.POSIXct("2012-01-01"), "%j"))
                      } else {yday(subBreedTab[ind,] %>% pull(Departure_breed))},
-          maxT      = if (dir ==1) {subBreedTab[ind,] %>% pull(start_hist) + 15
+          maxT      = if (dir ==1) {arrivalTab[arrivalTab$index %in% subBreedTab$breeding_id[ind], ] %>% pull(arrival_hist) + 15
                      }else {yday(subBreedTab[ind,] %>% pull(Arrival)) + 15},
           MaxX      = 100,
           B0        = 3,
-          w         = 0.0028, ## 0.028 for nm
-          xc        = 1, ## 10 for nm
+          w         = 0.028, ## 0.028 for nm, 0.0028 for sw
+          xc        = 10, ## 10 for nm, 1 for sw
           WindAssist = 0,
           WindProb   = 1,
           ZStdNorm   = c(-2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0,  2.5),
@@ -155,9 +187,9 @@ for(run in 22:22) { #no. 22,29 did not run
           decError   = 250000,
           pred    = c(1e-3, 1e-4, 1e-6, 2, 2),
           sites   = size,
-          inScale = intSeq[sim_list[run,2],],
-          penalty = c(0,penSeq[sim_list[run,1]], 0),
-          latF    = latSeq[sim_list[run,3]],
+          inScale = c(0.25,1),
+          penalty = c(0,0.0012, 0),
+          latF    = 1.33,
           dist  = distM,
           bear  = bearM,
           tTab  = tempTab[size$index,,] 
@@ -165,11 +197,12 @@ for(run in 22:22) { #no. 22,29 did not run
       
       parallel::mclapply(1:2, function(x) {
         model   <- bwdIteration(sdpObjects[[x]])
-        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = start_x_seq[var,]), error = function(e) NULL)
+        simu    <- tryCatch(fwdSimulation(model,subBreedTab$n[ind], start_t = 1, start_site = 1, start_x = c(30,50)), error = function(e) NULL)
         condProfile(simu, model)
         matplot(model@Results$FitnessMatrix[,400,], type = 'o', col = 'grey80', pch = 16)
         simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)
       }, mc.cores = 2)
+      
       
     }, mc.cores = 11)
     
@@ -185,7 +218,7 @@ for(run in 22:22) { #no. 22,29 did not run
                                                                     tryCatch(tibble(t = 2, f = indSim[[ind]][[2]][[5]]), error = function(e) NULL)))))
     
   })
-  save(allSpSim, file = glue::glue("{data_folder}/Results/Southward/allSpSim_startx_{start_x_seq[var]}.rda"))
+  save(allSpSim, file = glue::glue("{data_folder}/Results/Northward/allSpSim_RNS.rda"))
   
 
   #### 6. Diagnostic plot(s)
@@ -195,4 +228,4 @@ for(run in 22:22) { #no. 22,29 did not run
   plotMigrationData (allSpSim, empTrackList, spCols, breedTab, eaafMap, mudflatTab, spParms,
                      glue::glue("startx_{start_x_seq[var]}.pdf"))
 
-}}
+}
