@@ -67,6 +67,28 @@ Mat3Array      <- function(x) {
   out 
 }
 
+Mat4Array      <- function(x) {
+  
+  rows = length(x)
+  cols = length(x[[1]])
+  d3 = length(x[[1]][[1]])
+  d4 = length(x[[1]][[1]][[1]])
+  
+  out <- array(dim = c(rows, cols, d3, d4))
+  
+  for(r in 1:rows) {
+    for(c in 1:cols) {
+      for(d.1 in 1:d3) {
+        for(d.2 in 1:d4) {
+          out[r, c, d.1, d.2] <- x[[r]][[c]][[d.1]][[d.2]]
+        }
+      }
+    }
+  }
+  out 
+}
+
+
 CalcTR         <- function(x, t) {
   TR <- approx(parms$xFTReward, parms$yFTReward, t, rule = 3)$y
   s  <- parms$w * (x - parms$xc)
