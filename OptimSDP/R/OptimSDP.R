@@ -88,7 +88,6 @@ Mat4Array      <- function(x) {
   out 
 }
 
-
 CalcTR         <- function(x, t) {
   TR <- approx(parms$xFTReward, parms$yFTReward, t, rule = 3)$y
   s  <- parms$w * (x - parms$xc)
@@ -251,16 +250,16 @@ bwdIteration <- function(obj, pbar = FALSE) {
        as.matrix(obj@Sites$expend),
        obj@Sites$penalty)
   
-  out <- BackwardIteration(pbar = pbar)
+  out <- BackwardIteration()
   
-  obj@Results$FitnessMatrix <- out[[1]]
-  DM <- array(dim = c(dim(out[[2]]),2))
-  DM[,,,1] <- out[[2]]
-  DM[,,,2] <- out[[3]]
+  obj@Results$FitnessMatrix <- Mat4Array(out[[1]])
+  
+  DM <- abind::abind(Mat4Array(out[[2]]),
+                     Mat4Array(out[[3]]), along = 5)
   obj@Results$DecisionMatrix <- DM
-  PM <- array(dim = c(dim(out[[4]]),2))
-  PM[,,,1] <- out[[4]]
-  PM[,,,2] <- out[[5]]
+  
+  PM <- abind::abind(Mat4Array(out[[4]]),
+                     Mat4Array(out[[5]]), along = 5)
   obj@Results$ProbMatrix <- PM
   
   obj
@@ -325,16 +324,16 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
          sum(SimOut[ind, 2, ] >= nrow(model@Sites$crds), na.rm = T)<1 & !SimOut[ind, 5, time]) {
         
         ## Decision
-        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1]) {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1]
+        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, 1]) {
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, 1]
         } else {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 2]
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 2, 1]
         }
         
         ## Action
         if(decision>=0) { ## Flying
           
-          fl_help = simFlying(decision, time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time])
+          fl_help = simFlying(decision, time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], 1)
           
           nextt = fl_help[1] + 1
           if(nextt<=time) nextt <- time+1
@@ -357,7 +356,7 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
           
         } else { ## Feeding
           
-          fo_help = simForaging(abs(decision+1.0), time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time])
+          fo_help = simForaging(abs(decision+1.0), time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time],1)
           
           newx = fo_help[1]+1
           dead = fo_help[2]
@@ -502,15 +501,15 @@ simNetwork <- function(simu, model, crds_ind, map = eaafMap, plot = FALSE) {
   }) %>% Reduce("rbind", .)
   
   
-  fitness <- lapply(1:dim(simu)[1], function(x) {
-    if(all(simu[x,5,]==0)) {
-      t <- min(which(simu[x,2,]==max(simu[x,2,], na.rm = T)))
-      matrix(c(t, simu[x,3,t]), ncol = 2)
-    } else NULL
-    }) %>% do.call("rbind",.) %>% apply(., 1, function(f) model@Results$FitnessMatrix[f[1], dim(model@Results$FitnessMatrix)[2],f[2]])
+  # fitness <- lapply(1:dim(simu)[1], function(x) {
+  #   if(all(simu[x,5,]==0)) {
+  #     t <- min(which(simu[x,2,]==max(simu[x,2,], na.rm = T)))
+  #     matrix(c(t, simu[x,3,t]), ncol = 2)
+  #   } else NULL
+  #   }) %>% do.call("rbind",.) %>% apply(., 1, function(f) model@Results$FitnessMatrix[f[1], dim(model@Results$FitnessMatrix)[2],f[2]])
+  # 
   
-  
-  list(trans, relSite, migrPhen, fueling, fitness)
+  list(trans, relSite, migrPhen, fueling) #fitness 
   
 } 
 
