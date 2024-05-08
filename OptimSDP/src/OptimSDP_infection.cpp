@@ -291,7 +291,6 @@ double CalculateTR(int c_x,
 
 // Predation
 // Calculates the reduction in fitness based on predation
-// [[Rcpp::export]]
 double Predation (
     const int& time,
     const int& site,
@@ -322,7 +321,6 @@ double Predation (
 
 // FindFitness value
 // Interpolates FitnessValue for time, site, x, inf and feeding intensity
-// [[Rcpp::export]]
 double FindF (
     const int& time, 
     const int& site, 
@@ -359,7 +357,6 @@ double FindF (
 
 // Foraging
 // Major Foraging function: Optimization of Foraging intensity
-// [[Rcpp::export]]
 double Foraging(const int& time,
                 const int& site,
                 const int& x,
@@ -446,7 +443,6 @@ double Foraging(const int& time,
 } // end Foraging
 
 // Flying
-// [[Rcpp::export]]
 double Flying(
     const int& time,
     const int& site,
@@ -462,7 +458,7 @@ double Flying(
   totalD = 0.0;
   Whold = 0.0;
   
-  range = (sdp::c) * (1.0 - (1.0/ (sqrt(1.0 + ( ((double)(x)) / (double)(sdp::MaxX)) ))));
+  range = (sdp::c) * (1.0 - (1.0/ (sqrt(1.0 + ( ((double)(x)) / (double)(sdp::MaxX))))));
   
   totalD = sdp::dist(site, dep_site);
   for (int h = 0; h < sdp::WindProb.size(); ++h)
@@ -485,16 +481,16 @@ double Flying(
       
       if ((nextx+1.0) > (double)(sdp::MaxX))
       {
-        part1 = tim1*res1*sdp::FMatrix[time+1][site][sdp::MaxX][inf];
-        part3 = tim2*res1*sdp::FMatrix[time][site][sdp::MaxX][inf];
+        part1 = tim1*res1*sdp::FMatrix[(int)(t)+1][dep_site][sdp::MaxX][inf];
+        part3 = tim2*res1*sdp::FMatrix[(int)(t)][dep_site][sdp::MaxX][inf];
       }
       else
       {
-        part1 = tim1*res1*sdp::FMatrix[time+1][site][(int)(nextx)+1][inf]; 
-        part3 = tim2*res1*sdp::FMatrix[time][site][(int)(nextx)+1][inf];
+        part1 = tim1*res1*sdp::FMatrix[(int)(t)+1][dep_site][(int)(nextx)+1][inf];
+        part3 = tim2*res1*sdp::FMatrix[(int)(t)][dep_site][(int)(nextx)+1][inf];
       }
-      part2 = tim1*res2*sdp::FMatrix[time+1][site][(int)(nextx)+1][inf];
-      part4 = tim2*res2*sdp::FMatrix[time][site][(int)(nextx)+1][inf];
+      part2 = tim1*res2*sdp::FMatrix[(int)(t)+1][dep_site][(int)(nextx)][inf];
+      part4 = tim2*res2*sdp::FMatrix[(int)(t)][dep_site][(int)(nextx)][inf];
       interpolReward = part1+part2+part3+part4;
     }
     double help_old = Whold;
@@ -502,6 +498,7 @@ double Flying(
   } //End h
   return Whold;
 }  // end Flying
+
 
 
 ////////////////////////////////////////////////////////////////
@@ -580,7 +577,6 @@ void Init( int direction,
 Rcpp::List BackwardIteration() {
   
   /// Terminal Reward
-  int inf = 0;
   sdp::Matrix4D<float>FM_TR;
   FM_TR.resize((sdp::MaxT-sdp::MinT)+1, sdp::NSites+1, sdp::MaxX+1, 2, 0.0);
   
@@ -589,7 +585,8 @@ Rcpp::List BackwardIteration() {
   {
     for (int c = 0; c <= sdp::MaxX; ++c)
     {
-      FM_TR[r][sdp::NSites][c][inf] = CalculateTR(c, r, sdp::w, sdp::xc, sdp::B0, sdp::nTR_x, sdp::nTR_y);
+      FM_TR[r][sdp::NSites][c][0] = CalculateTR(c, r, sdp::w, sdp::xc, sdp::B0, sdp::nTR_x, sdp::nTR_y);
+      FM_TR[r][sdp::NSites][c][1] = CalculateTR(c, r, sdp::w, sdp::xc, sdp::B0, sdp::nTR_x, sdp::nTR_y);
     }
   }
 
@@ -597,7 +594,8 @@ Rcpp::List BackwardIteration() {
   {
     for (int c = 0; c <= sdp::MaxX; ++c)
     {
-      FM_TR[(sdp::MaxT-sdp::MinT)][r][c][inf] = sdp::B0;
+      FM_TR[(sdp::MaxT-sdp::MinT)][r][c][0] = sdp::B0;
+      FM_TR[(sdp::MaxT-sdp::MinT)][r][c][1] = sdp::B0;
     }
   }
   
@@ -612,6 +610,7 @@ Rcpp::List BackwardIteration() {
   sdp::Matrix4D<float>PMatrix2;
   sdp::PMatrix2.resize(sdp::NSites+1, (sdp::MaxT-sdp::MinT)+1,sdp::MaxX+1, 2, 0.0);
   
+  
   Rcpp::List out(5);
   
   arma::vec  Mrew(sdp::NSites+1);
@@ -621,71 +620,69 @@ Rcpp::List BackwardIteration() {
   // // Progress bar
   // Progress p(sdp::MaxT*(sdp::NSites), pbar);
   
-  for (int time = ((sdp::MaxT-sdp::MinT)-1); time >= 0; --time)
+  for (int inf = 0; inf <=1; ++inf)
   {
-    for (int site = 0; site < (sdp::NSites); ++site)
+    for (int time = ((sdp::MaxT-sdp::MinT)-1); time >= 0; --time)
     {
-
-      sdp::FMatrix[time][site][0][inf] = 0.0;
-      // p.increment(); // update progress
-      
-
-      for(int x = 1; x <= (sdp::MaxX); ++x) {
-
-        sdp::Fintensity = 0.0;
-        max_Reward = 0.0;
-        decision = 0.0;
-        
-        
-        double f_help = Foraging(time, site, x, inf);
-        sdp::FMatrix[time][site][x][inf] = f_help;
-
-        decision   = - sdp::Fintensity - 1.0;
-        sdp::DMatrix1[site][time][x][inf] = decision;
-
-        max_Reward = f_help;
-
-        for (int bb = 0; bb <= sdp::NSites; ++bb) Mrew(bb) = 0.0;
-        
-        
-        for (int dest = 0; dest <= sdp::NSites; ++dest) //funktioniert
-        {
-          if((sdp::direction<2 && sdp::bear(dest, site)>80) || (sdp::direction>1 && sdp::bear(dest, site)<80)) {
-            float help_z = Flying(time, site, x, inf, dest);
-            if(dest == site) help_z = 0;
-            Mrew[dest] = help_z;
-          }
-        }
-        
-      
-        double help_flying = 0.0;//funktioniert
-        int best_bb = 0;
-        for (int bb = 0; bb <= sdp::NSites; ++bb)//funktioniert
-        {
-          if (Mrew[bb] > help_flying)
-          {
-            help_flying = Mrew(bb);
-            best_bb = bb;
-            sdp::DMatrix2[site][time][x][inf] = (double)(bb);
-            if (help_flying > max_Reward) max_Reward = help_flying;
-          }
-        }
+      for (int site = 0; site < (sdp::NSites); ++site)
+      {
+  
+        sdp::FMatrix[time][site][0][inf] = 0.0;
+        // p.increment(); // update progress
+  
+        for(int x = 1; x <= (sdp::MaxX); ++x) {
+  
+          sdp::Fintensity = 0.0;
+          max_Reward = 0.0;
+          decision = 0.0;
+          
+          
+          double f_help = Foraging(time, site, x, inf);
+          sdp::FMatrix[time][site][x][inf] = f_help;
+  
+          decision   = - sdp::Fintensity - 1.0;
+          sdp::DMatrix1[site][time][x][inf] = decision;
+  
+          max_Reward = f_help;
+  
+          for (int bb = 0; bb <= sdp::NSites; ++bb) Mrew(bb) = 0.0;
+          
+            for (int dest = site; dest <= sdp::NSites; ++dest)
+            {
+              ///if bearing TO BE INCLUDED
+              float help_z = Flying(time, site, x, inf, dest);
+              if(dest == site) help_z = 0;
+              Mrew[dest] = help_z;
+            }
+            
+            double help_flying = 0.0;
+            int best_bb = 0;
+            for (int bb = 0; bb <= sdp::NSites; ++bb)
+            {
+              if (Mrew[bb] > help_flying)
+              {
+                help_flying = Mrew(bb);
+                best_bb = bb;
+                sdp::DMatrix2[site][time][x][inf] = (double)(bb);
+                if (help_flying > max_Reward) max_Reward = help_flying;
+              }
+            }
+            
+            sdp::PMatrix1[site][time][x][inf] = DecError((max_Reward - sdp::FMatrix[time][site][x][inf])/max_Reward, sdp::decError);
+            sdp::PMatrix2[site][time][x][inf] = DecError((max_Reward - Mrew(best_bb))/max_Reward, sdp::decError);
+            
+            double sum_action = sdp::PMatrix1[site][time][x][inf] + sdp::PMatrix2[site][time][x][inf];
+            //
+            sdp::PMatrix1[site][time][x][inf] /= sum_action;
+            sdp::PMatrix2[site][time][x][inf] /= sum_action;
+            
+            sdp::FMatrix[time][site][x][inf]  = max_Reward;
      
-     
-        sdp::PMatrix1[site][time][x][inf]  = DecError((max_Reward - sdp::FMatrix[time][site][x][inf])/max_Reward, sdp::decError);
-        sdp::PMatrix2[site][time][x][inf]  = DecError((max_Reward - Mrew(best_bb))/max_Reward, sdp::decError);
-    
-        double sum_action = sdp::PMatrix1[site][time][x][inf]  + sdp::PMatrix2[site][time][x][inf] ; 
-
-        sdp::PMatrix1[site][time][x][inf] /= sum_action;
-        sdp::PMatrix2[site][time][x][inf] /= sum_action;
-
-        sdp::FMatrix[time][site][x][inf]  = max_Reward;
-   
-      } // end x
-     
-    } // end site
-  } // end time
+        } // end x
+       
+      } // end site
+    } // end time
+  }
   
   out[0] = sdp::FMatrix;
   out[1] = sdp::DMatrix1;

@@ -107,7 +107,7 @@ ind <- 1
           MaxX      = 100,
           B0        = 3,
           w         = 0.028, ## 0.028 for nm
-          xc        = 10, ## 10 for nm
+          xc        = 10,    ## 10 for nm
           WindAssist = 0,
           WindProb   = 1,
           ZStdNorm   = c(-2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0,  2.5),
@@ -134,8 +134,12 @@ ind <- 1
                    y = 1:dim(model@Results$DecisionMatrix)[2],
                    z = model@Results$DecisionMatrix[,,101,1,1]))
         
+        image(list(x = 1:dim(model@Results$ProbMatrix)[1],
+                   y = 1:dim(model@Results$ProbMatrix)[2],
+                   z = model@Results$ProbMatrix[,,101,1,2]))
+        
         
         simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50)), error = function(e) NULL)
         condProfile(simu, model)
-        matplot(model@Results$FitnessMatrix[,400,], type = 'o', col = 'grey80', pch = 16)
+        ## matplot(model@Results$FitnessMatrix[,400,], type = 'o', col = 'grey80', pch = 16)
         simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)

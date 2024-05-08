@@ -272,6 +272,8 @@ bwdIteration <- function(obj, pbar = FALSE) {
 
 fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
   
+  inf = 0
+  
   InitSim(model@Init$MinT, 
           model@Init$MaxT, 
           model@Init$NSites, 
@@ -324,10 +326,10 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
          sum(SimOut[ind, 2, ] >= nrow(model@Sites$crds), na.rm = T)<1 & !SimOut[ind, 5, time]) {
         
         ## Decision
-        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, 1]) {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, 1]
+        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, inf+1]) {
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], inf+1, 1]
         } else {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 2, 1]
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], inf+1, 2]
         }
         
         ## Action

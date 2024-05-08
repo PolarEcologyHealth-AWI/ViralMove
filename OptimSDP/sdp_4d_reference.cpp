@@ -690,8 +690,6 @@ Rcpp::List BackwardIteration(int inf) {
           sdp::PMatrix1[site][time][x][inf] /= sum_action;
           sdp::PMatrix2[site][time][x][inf] /= sum_action;
           
-          
-          
           sdp::FMatrix[time][site][x][inf]  = max_Reward;
           
         } // end x
