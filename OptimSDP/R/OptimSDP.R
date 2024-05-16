@@ -182,8 +182,10 @@ makeSDPobjects <- function(parms) {
         B0    = parms$B0,
         w     = parms$w,
         xc    = parms$xc,
-        c     = as.numeric(parms$spParm$c),
-        speed = parms$spParm$speed,
+        expFor = parms$expFor,
+        expFly = parms$expFly,
+        c      = as.numeric(parms$spParm$c),
+        speed  = parms$spParm$speed,
         WindAssist = parms$WindAssist,
         WindProb   = parms$WindProb,
         ZStdNorm = parms$ZStdNorm,
@@ -229,6 +231,8 @@ bwdIteration <- function(obj, pbar = FALSE) {
        obj@Init$MaxX,
        obj@Species$w,
        obj@Species$xc,
+       obj@Species$expFor,
+       obj@Species$expFly,
        obj@Species$B0,
        obj@Sites$b0,
        obj@Sites$b1,
@@ -270,9 +274,7 @@ bwdIteration <- function(obj, pbar = FALSE) {
 #### Forward Simulation#####
 ############################
 
-fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
-  
-  inf = 0
+fwdSimulation <- function(model, NrInd, start_t, start_site, start_x, inf ) {
   
   InitSim(model@Init$MinT, 
           model@Init$MaxT, 
@@ -280,6 +282,8 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
           model@Init$MaxX,
           model@Species$w,
           model@Species$xc,
+          model@Species$expFor,
+          model@Species$expFly,
           model@Species$B0,
           model@Sites$b0,
           model@Sites$b1,
@@ -308,11 +312,11 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
   }
   if(length(start_site)==1) start_site <- rep(start_site, NrInd)
   
-  SimOut = array(dim = c(length(x), 6, dim(model@Results$FitnessMatrix)[1]))
+  SimOut = array(dim = c(length(x), 7, dim(model@Results$FitnessMatrix)[1]))
   
   ### First entry
   for(i in 1:dim(SimOut)[1]) {
-    SimOut[i, ,start_t] <- c(start_t, start_site[i], x[i], 0, 0, 0)
+    SimOut[i, ,start_t] <- c(start_t, start_site[i], x[i], 0, 0, 0, inf)
   }
   
   
@@ -321,21 +325,23 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
     
     for(ind in 1:dim(SimOut)[1]) {
       
+      
+      
       ## Not dead, not arrived, not flying
       if(!SimOut[ind, 6, time] & 
          sum(SimOut[ind, 2, ] >= nrow(model@Sites$crds), na.rm = T)<1 & !SimOut[ind, 5, time]) {
         
         ## Decision
-        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, inf+1]) {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], inf+1, 1]
+        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], SimOut[ind, 7, time]+1, 1]) {
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], SimOut[ind, 7, time]+1, 1]
         } else {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], inf+1, 2]
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], SimOut[ind, 7, time]+1, 2]
         }
         
         ## Action
         if(decision>=0) { ## Flying
           
-          fl_help = simFlying(decision, time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], 1)
+          fl_help = simFlying(decision, time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], SimOut[ind, 7, time])
           
           nextt = fl_help[1] + 1
           if(nextt<=time) nextt <- time+1
@@ -347,18 +353,18 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
             dead  = 1 } else  dead = 0
           if(nextx > model@Init$MaxX) nextx = model@Init$MaxX
           
-          SimOut[ind,,nextt] = c(nextt, decision+1, nextx, NA, 0, dead)
+          SimOut[ind,,nextt] = c(nextt, decision+1, nextx, NA, 0, dead,  inf)
           if(nextt>(time+1)) SimOut[ind,5:6,(time+1):(nextt-1)] = cbind(1,0)
           if(SimOut[ind, 6, nextt])  SimOut[ind, 6, nextt:dim(SimOut)[3]] = 1 ## if dead make dead till the end
           
           if(SimOut[ind, 2, nextt]==nrow(model@Sites$crds)) {
-            SimOut[ind,2:6, nextt:dim(SimOut)[3]] <- SimOut[ind, 2:6, nextt]
+            SimOut[ind,2:7, nextt:dim(SimOut)[3]] <- SimOut[ind, 2:7, nextt]
             SimOut[ind,1,   nextt:dim(SimOut)[3]] <- seq(nextt, dim(SimOut)[3])
           }
           
         } else { ## Feeding
           
-          fo_help = simForaging(abs(decision+1.0), time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time],1)
+          fo_help = simForaging(abs(decision+1.0), time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], SimOut[ind, 7, time])
           
           newx = fo_help[1]+1
           dead = fo_help[2]
@@ -366,7 +372,7 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
           
           if(newx > model@Init$MaxX) newx = model@Init$MaxX
           
-          SimOut[ind,,time+1] = c(time+1, SimOut[ind, 2, time], newx, abs(decision+1.0), 0, dead)
+          SimOut[ind,,time+1] = c(time+1, SimOut[ind, 2, time], newx, abs(decision+1.0), 0, dead, inf)
           
           if(SimOut[ind, 6, time+1])  SimOut[ind, 6, (time+1):dim(SimOut)[3]] = 1 ## if dead make dead till the end
           
@@ -382,6 +388,119 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x) {
   
   SimOut
 }
+
+
+# fwdSimulation <- function(model, NrInd, start_t, start_site, start_x, inf = 0) {
+#   
+#   
+#   InitSim(model@Init$MinT, 
+#           model@Init$MaxT, 
+#           model@Init$NSites, 
+#           model@Init$MaxX,
+#           model@Species$w,
+#           model@Species$xc,
+#           model@Species$B0,
+#           model@Sites$b0,
+#           model@Sites$b1,
+#           model@Sites$b2,
+#           model@Sites$pred_a1,
+#           model@Sites$pred_a2,
+#           model@Species$c,
+#           model@Species$speed,
+#           model@Species$WindAssist,
+#           model@Species$WindProb,
+#           model@Species$ZStdNorm,
+#           model@Species$PStdNorm,
+#           model@Species$xFTReward,
+#           model@Species$yFTReward,
+#           model@Species$decError,
+#           model@Sites$dist,
+#           model@Sites$bear,
+#           model@Sites$gain,
+#           model@Sites$expend)
+#   
+#   
+#   x <- round(runif(NrInd, start_x[1], start_x[2]),0)
+#   
+#   if(length(start_site)>1 & length(start_site)<start_x[1]) {
+#     stop("start_site must have same length as numbers of individuals or a single site.")
+#   }
+#   if(length(start_site)==1) start_site <- rep(start_site, NrInd)
+#   
+#   SimOut = array(dim = c(length(x), 6, dim(model@Results$FitnessMatrix)[1]))
+#   
+#   ### First entry
+#   for(i in 1:dim(SimOut)[1]) {
+#     SimOut[i, ,start_t] <- c(start_t, start_site[i], x[i], 0, 0, 0)
+#   }
+#   
+#   
+#   ## SimOut: 1 = time, 2 = site, 3 = x, 4 = decision, 5 = flying, 6 = dead {
+#   for(time in 1:(dim(SimOut)[3]-1)) {
+#     
+#     for(ind in 1:dim(SimOut)[1]) {
+#       
+#       ## Not dead, not arrived, not flying
+#       if(!SimOut[ind, 6, time] & 
+#          sum(SimOut[ind, 2, ] >= nrow(model@Sites$crds), na.rm = T)<1 & !SimOut[ind, 5, time]) {
+#         
+#         ## Decision
+#         if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], 1, inf+1]) {
+#           decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], inf+1, 1]
+#         } else {
+#           decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], inf+1, 2]
+#         }
+#         
+#         ## Action
+#         if(decision>=0) { ## Flying
+#           
+#           fl_help = simFlying(decision, time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], 1)
+#           
+#           nextt = fl_help[1] + 1
+#           if(nextt<=time) nextt <- time+1
+#           if(nextt>dim(SimOut)[3]) time <- dim(SimOut)[3]
+#           
+#           nextx = fl_help[2] + 1
+#           if(nextx <  0) {
+#             nextx = 0
+#             dead  = 1 } else  dead = 0
+#           if(nextx > model@Init$MaxX) nextx = model@Init$MaxX
+#           
+#           SimOut[ind,,nextt] = c(nextt, decision+1, nextx, NA, 0, dead)
+#           if(nextt>(time+1)) SimOut[ind,5:6,(time+1):(nextt-1)] = cbind(1,0)
+#           if(SimOut[ind, 6, nextt])  SimOut[ind, 6, nextt:dim(SimOut)[3]] = 1 ## if dead make dead till the end
+#           
+#           if(SimOut[ind, 2, nextt]==nrow(model@Sites$crds)) {
+#             SimOut[ind,2:6, nextt:dim(SimOut)[3]] <- SimOut[ind, 2:6, nextt]
+#             SimOut[ind,1,   nextt:dim(SimOut)[3]] <- seq(nextt, dim(SimOut)[3])
+#           }
+#           
+#         } else { ## Feeding
+#           
+#           fo_help = simForaging(abs(decision+1.0), time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time],1)
+#           
+#           newx = fo_help[1]+1
+#           dead = fo_help[2]
+#           if(newx<=0) dead = 1
+#           
+#           if(newx > model@Init$MaxX) newx = model@Init$MaxX
+#           
+#           SimOut[ind,,time+1] = c(time+1, SimOut[ind, 2, time], newx, abs(decision+1.0), 0, dead)
+#           
+#           if(SimOut[ind, 6, time+1])  SimOut[ind, 6, (time+1):dim(SimOut)[3]] = 1 ## if dead make dead till the end
+#           
+#         }
+#         
+#       }
+#       
+#     } ## Ind loop
+#   } ## time loop
+#   
+#   SimOut       <- SimOut[,-5,] 
+#   SimOut[,2,] <- SimOut[,2,]-1
+#   
+#   SimOut
+# }
 
 pltNetwork <- function(simu, model, map = eaafMap) {
   

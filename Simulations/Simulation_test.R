@@ -108,6 +108,8 @@ ind <- 1
           B0        = 3,
           w         = 0.028, ## 0.028 for nm
           xc        = 10,    ## 10 for nm
+          expFor    = 5,
+          expFly    = 5,
           WindAssist = 0,
           WindProb   = 1,
           ZStdNorm   = c(-2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0,  2.5),
@@ -126,20 +128,19 @@ ind <- 1
       
         model   <- bwdIteration(sdpObjects[[1]])
 
-        image(list(x = 1:dim(model@Results$FitnessMatrix)[1],
-                   y = 1:dim(model@Results$FitnessMatrix)[2],
-                   z = model@Results$FitnessMatrix[,,101,1]))
+        # image(list(x = 1:dim(model@Results$FitnessMatrix)[1],
+        #            y = 1:dim(model@Results$FitnessMatrix)[2],
+        #            z = model@Results$FitnessMatrix[,,101,2]))
+        # 
+        # image(list(x = 1:dim(model@Results$DecisionMatrix)[1],
+        #            y = 1:dim(model@Results$DecisionMatrix)[2],
+        #            z = model@Results$DecisionMatrix[,,101,2,2]))
+        # 
+        # image(list(x = 1:dim(model@Results$ProbMatrix)[1],
+        #            y = 1:dim(model@Results$ProbMatrix)[2],
+        #            z = model@Results$ProbMatrix[,,101,2,2]))
         
-        image(list(x = 1:dim(model@Results$DecisionMatrix)[1],
-                   y = 1:dim(model@Results$DecisionMatrix)[2],
-                   z = model@Results$DecisionMatrix[,,101,1,1]))
         
-        image(list(x = 1:dim(model@Results$ProbMatrix)[1],
-                   y = 1:dim(model@Results$ProbMatrix)[2],
-                   z = model@Results$ProbMatrix[,,101,1,2]))
-        
-        
-        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50)), error = function(e) NULL)
+        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50), inf = 0), error = function(e) NULL)
         condProfile(simu, model)
-        ## matplot(model@Results$FitnessMatrix[,400,], type = 'o', col = 'grey80', pch = 16)
         simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)

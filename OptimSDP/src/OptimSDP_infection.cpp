@@ -162,6 +162,8 @@ int MaxX;
 double B0;
 double w;
 double xc;
+arma::vec expFor;
+arma::vec expFly;
 arma::vec b0;
 arma::vec b1;
 arma::vec b2;
@@ -295,16 +297,23 @@ double Predation (
     const int& time,
     const int& site,
     const int& x,
+    const int& inf,
     double u,
     double f
 )
 {
   const double rew_tol = 0.0000005;
-  double netgain, cor_u, cor_x;
+  double netgain, cor_u, cor_x, red;
+  
+  if (inf > 0) {
+    red = 1 + sdp::expFor[0]/100;
+  } else {
+    red = 1;
+  }
   
   cor_u = u;
   cor_x = (double)(x);
-  netgain = ((u * f) - (sdp::expend(site, time)));
+  netgain = ((u * f) - (sdp::expend(site, time)*red));
   if (netgain <= 0.0) netgain = rew_tol;
   if (cor_u   <= 0.0) cor_u   = rew_tol;
   if (cor_x   <= 0.0) cor_x   = rew_tol;
@@ -332,10 +341,17 @@ double FindF (
     double u
 )
 {
-  double res1, res2, part1, part2, interpolReward;
+  double res1, res2, part1, part2, interpolReward, red;
   res1 = 0.0; res2 = 0.0; part1 = 0.0; part2 = 0.0;
   
-  double expenditure = sdp::expend(site, time);
+  if (inf > 0) {
+    red = 1 + sdp::expFor[0]/100;
+  } else {
+    red = 1;
+  }
+  
+  
+  double expenditure = sdp::expend(site, time)*red;
   double nextx = (double)(x) + gain * u - expenditure;
   switch (Eval(nextx, 0.0, (double)(sdp::MaxX)))
   {
@@ -392,8 +408,8 @@ double Foraging(const int& time,
   
   f1_old = f1;
   f2_old = f2;
-  f1 = (1.0 - Predation(time, site, x, u1, f1)) * f1;
-  f2 = (1.0 - Predation(time, site, x, u2, f2)) * f2;
+  f1 = (1.0 - Predation(time, site, x, inf, u1, f1)) * f1;
+  f2 = (1.0 - Predation(time, site, x, inf, u2, f2)) * f2;
   
   while ((fabs(u3 - u0)) > tol)
   {
@@ -410,7 +426,7 @@ double Foraging(const int& time,
         hold2 = FindF(time, site, x, inf, accuracy, gain, hold2_old, u2);
       }
       f1 = f2;
-      f2 = ((1.0 - Predation(time, site, x, u2, hold2)) * hold2);
+      f2 = ((1.0 - Predation(time, site, x, inf, u2, hold2)) * hold2);
     }
     if (f2 <= f1)
     {
@@ -425,7 +441,7 @@ double Foraging(const int& time,
         hold1 = FindF(time, site, x, inf, accuracy, gain, hold1_old, u1);
       }
       f2 = f1;
-      f1 = ((1.0 - Predation(time, site, x, u1, hold1)) * hold1);
+      f1 = ((1.0 - Predation(time, site, x, inf, u1, hold1)) * hold1);
     }
   }  //end of while loop
   
@@ -451,22 +467,30 @@ double Flying(
     int dep_site)
 {
   double totalD, Whold, range, Sqr_c, Sqr_ca;
-  double distance, t, interpolReward, nextx;
+  double distance, t, interpolReward, nextx, red;
   double res1, res2, tim1, tim2, part1, part2, part3, part4;
+  
+  if (inf > 0) {
+    red = 1 - sdp::expFly[0]/100;
+  } else {
+    red = 1;
+  }
+  
+  
   
   interpolReward = 0.0;
   totalD = 0.0;
   Whold = 0.0;
   
-  range = (sdp::c) * (1.0 - (1.0/ (sqrt(1.0 + ( ((double)(x)) / (double)(sdp::MaxX))))));
+  range = (sdp::c * red) * (1.0 - (1.0/ (sqrt(1.0 + ( ((double)(x)) / (double)(sdp::MaxX))))));
   
   totalD = sdp::dist(site, dep_site);
   for (int h = 0; h < sdp::WindProb.size(); ++h)
   {
     distance = totalD * (1.0 + sdp::WindAssist(h));
     
-    Sqr_c  = ((sdp::c) * (sdp::c));
-    Sqr_ca = ((sdp::c) - (range - distance))*((sdp::c) - (range - distance));
+    Sqr_c  = ((sdp::c * red) * (sdp::c *red));
+    Sqr_ca = ((sdp::c * red) - (range - distance))*((sdp::c * red) - (range - distance));
     nextx = ((Sqr_c/Sqr_ca) - 1.0) * sdp::MaxX;
     t = (double)(time) + (distance / sdp::speed);
     
@@ -514,6 +538,8 @@ void Init( int direction,
            int MaxX,
            double w,
            double xc,
+           double expFor,
+           double expFly,
            double B0,
            Rcpp::NumericVector b0,
            Rcpp::NumericVector b1,
@@ -547,6 +573,8 @@ void Init( int direction,
   sdp::B0 = B0;
   sdp::w = w;
   sdp::xc = xc;
+  sdp::expFor = expFor;
+  sdp::expFly = expFly;
   sdp::b0 = b0;
   sdp::b1 = b1;
   sdp::b2 = b2;
@@ -708,6 +736,8 @@ void InitSim (int MinT,
               int MaxX,
               double w,
               double xc,
+              double expFly,
+              double expFor,
               double B0,
               Rcpp::NumericVector b0,
               Rcpp::NumericVector b1,
@@ -738,6 +768,8 @@ void InitSim (int MinT,
   sdp::B0 = B0;
   sdp::w = w;
   sdp::xc = xc;
+  sdp::expFor = expFor,
+  sdp::expFly = expFly,
   sdp::b0 = b0;
   sdp::b1 = b1;
   sdp::b2 = b2;
