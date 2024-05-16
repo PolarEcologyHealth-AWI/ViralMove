@@ -356,7 +356,8 @@ double FindF (
   switch (Eval(nextx, 0.0, (double)(sdp::MaxX)))
   {
   case 0: interpolReward = sdp::FMatrix[time+1][site][0][inf]; break;
-  case 1: {    res1 = nextx - (int)(nextx);
+  case 1: {    
+    res1 = nextx - (int)(nextx);
     res2 = (int)(nextx) + 1.0 - nextx;
     
     part1 = res1 * sdp::FMatrix[time+1][site][(int)(nextx)+1][inf];

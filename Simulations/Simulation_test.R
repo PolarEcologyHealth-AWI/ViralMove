@@ -108,8 +108,8 @@ ind <- 1
           B0        = 3,
           w         = 0.028, ## 0.028 for nm
           xc        = 10,    ## 10 for nm
-          expFor    = 5,
-          expFly    = 5,
+          expFor    = 15,
+          expFly    = 35,
           WindAssist = 0,
           WindProb   = 1,
           ZStdNorm   = c(-2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0,  2.5),
@@ -141,6 +141,6 @@ ind <- 1
         #            z = model@Results$ProbMatrix[,,101,2,2]))
         
         
-        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50), inf = 0), error = function(e) NULL)
+        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50), inf = 1), error = function(e) NULL)
         condProfile(simu, model)
         simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)
