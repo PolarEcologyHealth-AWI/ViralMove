@@ -1,10 +1,10 @@
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::depends(RcppProgress)]]
 #include <vector>
 #include <cassert> 
 #include <RcppArmadillo.h>
-
-// #include <progress.hpp>
-// #include <progress_bar.hpp>
+#include <progress.hpp>
+#include <progress_bar.hpp>
 
 // Namespace for Parameters
 namespace sdp {
@@ -30,7 +30,6 @@ public:
     return std::vector<T>::operator[](index);
   }
 };
-
 
 // ---
 // 2d
@@ -111,6 +110,10 @@ public:
 };
 
 
+// ---
+// 4d
+// ---
+
 template <class T>
 class Matrix4D : public sdp::checkedVector<Matrix3D<T> >
 {
@@ -146,17 +149,19 @@ public:
 };
 
 
+
+
 // Init
+int direction;
 int MinT;
 int MaxT;
 int NSites;
 int MaxX;
 
 // Individual
-arma::vec B0;
+double B0;
 double w;
 double xc;
-arma::vec uMax;
 arma::vec expFly;
 arma::vec expFor;
 arma::vec b0;
@@ -165,8 +170,7 @@ arma::vec b2;
 double pred_a1;
 double pred_a2;
 double c;
-arma::vec speed;
-arma::vec f;
+double speed;
 arma::vec WindAssist;
 arma::vec WindProb;
 arma::vec ZStdNorm;
@@ -175,10 +179,12 @@ double decError;
 
 // Sites
 arma::mat dist;
+arma::mat bear;
 arma::vec nTR_x;
 arma::vec nTR_y;
 arma::mat expend;
-arma::mat y_gain;
+arma::vec y_gain;
+arma::vec penalty;
 
 // Output
 sdp::Matrix4D<float> FMatrix;
@@ -280,8 +286,6 @@ double CalculateTR(int c_x,
   return TR_tmp;
 }
 
-
-
 ////////////////////////////////////////////////////////////////
 ////// Functions used in Backward and Forward Simulation ///////
 ////////////////////////////////////////////////////////////////
@@ -302,14 +306,14 @@ double Predation (
   double netgain, cor_u, cor_x, red;
   
   if (inf > 0) {
-    red = 1 + (sdp::expFor[inf]/100);
+   red = 1 + (sdp::expFor[0]/100);
   } else {
     red = 1;
   }
   
   cor_u = u;
   cor_x = (double)(x);
-  netgain = ((u * f) - (sdp::expend(site, time)) * red);
+  netgain = ((u * f) - (sdp::expend(site, time))*red);
   if (netgain <= 0.0) netgain = rew_tol;
   if (cor_u   <= 0.0) cor_u   = rew_tol;
   if (cor_x   <= 0.0) cor_x   = rew_tol;
@@ -320,26 +324,23 @@ double Predation (
   double help4 = exp(sdp::pred_a2 * log(cor_u));
   double help5 = sdp::b0(site) + sdp::b1(site) * ((help1 - help2)/help3) * sdp::b2(site) * help4;
   
-  // double help1 = sdp::b1(site) * (pow(cor_u, sdp::pred_a1));
-  // double help2 = sdp::b2(site) * (pow(cor_x/((double)(sdp::MaxX)), sdp::pred_a2));
-  // double help5 = sdp::b0(site) + help1 + help2;
-  
   return help5;
 } // end Predation
 
 
 // FindFitness value
-// Interpolates FitnessValue for time, site, x and feeding intensity
+// Interpolates FitnessValue for time, site, x, inf and feeding intensity
 double FindF (
-    const int& time,
-    const int& site,
+    const int& time, 
+    const int& site, 
     const int& x,
     const int& inf,
-    int accuracy,
-    double gain,
-    double fx,
+    int accuracy, 
+    double gain, 
+    double fx, 
     double u
 )
+  
 {
   double res1, res2, part1, part2, interpolReward, red;
   res1 = 0.0; res2 = 0.0; part1 = 0.0; part2 = 0.0;
@@ -362,7 +363,7 @@ double FindF (
     part2 = res2 * sdp::FMatrix[time+1][site][(int)(nextx)][inf];
     interpolReward = part1 + part2;
     break;
-  }
+  }    
   case 2: interpolReward = sdp::FMatrix[time+1][site][sdp::MaxX][inf]; break;
   }
   double fx_new = fx + (sdp::PStdNorm(accuracy) * interpolReward);
@@ -385,15 +386,15 @@ double Foraging(const int& time,
   double hold1_old, hold2_old, f1_old, f2_old;
   int NStdNorm = sdp::ZStdNorm.size();
   
-  c = 1.0 - r;
+  c  = 1.0 - r;
   u0 = 0.0;
   u1 = r;
-  u3 = sdp::uMax[inf];
+  u3 = 1.0;
   u2 = u1 + c * (u3 - u1);
   
   f1 = 0.0; f2 = 0.0;
   
-  mean = sdp::y_gain(site, time);
+  mean = sdp::y_gain(site);
   SD   = 1;
   
   for (int accuracy = 0; accuracy < NStdNorm; ++accuracy)
@@ -407,8 +408,8 @@ double Foraging(const int& time,
   
   f1_old = f1;
   f2_old = f2;
-  f1 = (1.0 - Predation(time, site, x, inf, u1, f1)) * f1;
-  f2 = (1.0 - Predation(time, site, x, inf, u2, f2)) * f2;
+  f1 = (1.0 - Predation(time, site, x,inf, u1, f1)) * f1;
+  f2 = (1.0 - Predation(time, site, x, u2,inf, f2)) * f2;
   
   while ((fabs(u3 - u0)) > tol)
   {
@@ -420,7 +421,7 @@ double Foraging(const int& time,
       hold2 = 0.0;
       for (int accuracy = 0; accuracy < NStdNorm; ++accuracy)
       {
-        gain = mean + sdp::ZStdNorm(accuracy) * SD;
+        gain = mean+ sdp::ZStdNorm(accuracy) * SD;
         hold2_old = hold2;
         hold2 = FindF(time, site, x, inf, accuracy, gain, hold2_old, u2);
       }
@@ -440,26 +441,24 @@ double Foraging(const int& time,
         hold1 = FindF(time, site, x, inf, accuracy, gain, hold1_old, u1);
       }
       f2 = f1;
-      f1 = ((1.0 - Predation(time, site, x, inf, u1, hold1)) * hold1);
+      f1 = ((1.0 - Predation(time, site, x,inf, u1, hold1)) * hold1);
     }
   }  //end of while loop
   
   if (f1 <= f2)
   {
     sdp::Fintensity = u2;
-    Freward = f2;
+    Freward = f2 * sdp::penalty(site);
   }
   else //(f1 > f2)
   {
     sdp::Fintensity = u1;
-    Freward = f1;
+    Freward = f1 * sdp::penalty(site);
   }
   return Freward;
 } // end Foraging
 
-
 // Flying
-// [[Rcpp::export]]
 double Flying(
     const int& time,
     const int& site,
@@ -481,7 +480,7 @@ double Flying(
     red = 1;
   }
   
-  range = (sdp::c*red) * (1.0 - (1.0/ (sqrt(1.0 + (  ((double)(x) - (1 - sdp::f[inf]) * x) / (double)(sdp::MaxX)) ))));
+  range = (sdp::c*red) * (1.0 - (1.0/ (sqrt(1.0 + (  (double)(x) / (double)(sdp::MaxX)) ))));
   
   totalD = sdp::dist(site, dep_site);
   for (int h = 0; h < sdp::WindProb.size(); ++h)
@@ -491,8 +490,7 @@ double Flying(
     Sqr_c  = ((sdp::c*red) * (sdp::c*red));
     Sqr_ca = ((sdp::c*red) - (range - distance))*((sdp::c*red) - (range - distance));
     nextx = ((Sqr_c/Sqr_ca) - 1.0) * sdp::MaxX;
-    t = (double)(time) + (distance / sdp::speed[inf]);
-    
+    t = (double)(time) + (distance / sdp::speed);
     
     
     if (t >= (sdp::MaxT-sdp::MinT)) interpolReward = 0.0;
@@ -525,20 +523,21 @@ double Flying(
 }  // end Flying
 
 
+
 ////////////////////////////////////////////////////////////////
 ////// Export Functions: Backward Iteration ////////////////////
 ////////////////////////////////////////////////////////////////
 
 
 // [[Rcpp::export]]
-void Init( int MinT,
+void Init( int direction,
+           int MinT,
            int MaxT,
            int NSites,
            int MaxX,
            double w,
            double xc,
-           Rcpp::NumericVector B0,
-           Rcpp::NumericVector uMax,
+           double B0,
            Rcpp::NumericVector expFly,
            Rcpp::NumericVector expFor,
            Rcpp::NumericVector b0,
@@ -547,8 +546,7 @@ void Init( int MinT,
            double pred_a1,
            double pred_a2,
            double c,
-           Rcpp::NumericVector speed,
-           Rcpp::NumericVector f,
+           double speed,
            Rcpp::NumericVector WindAssist,
            Rcpp::NumericVector WindProb,
            Rcpp::NumericVector ZStdNorm,
@@ -557,11 +555,14 @@ void Init( int MinT,
            Rcpp::NumericVector nTR_y,
            double decError,
            arma::mat dist,
-           arma::mat y_gain,
-           arma::mat y_expend
+           arma::mat bear,
+           Rcpp::NumericVector y_gain,
+           arma::mat y_expend,
+           Rcpp::NumericVector penalty
 )
 {
   // Basic Parms
+  sdp::direction = direction;
   sdp::MinT   = MinT;
   sdp::MaxT   = MaxT;
   sdp::NSites = NSites;
@@ -571,7 +572,6 @@ void Init( int MinT,
   sdp::B0 = B0;
   sdp::w = w;
   sdp::xc = xc;
-  sdp::uMax = uMax;
   sdp::expFly = expFly;
   sdp::expFor = expFor;
   sdp::b0 = b0;
@@ -581,7 +581,6 @@ void Init( int MinT,
   sdp::pred_a2 = pred_a2;
   sdp::c = c;
   sdp::speed = speed;
-  sdp::f = f;
   sdp::WindAssist = WindAssist;
   sdp::WindProb = WindProb;
   sdp::ZStdNorm = ZStdNorm;
@@ -592,34 +591,39 @@ void Init( int MinT,
   
   // Sites
   sdp::dist   = dist;
+  sdp::bear   = bear;
   sdp::y_gain = y_gain;
   sdp::expend = y_expend;
+  sdp::penalty = penalty;
   
   sdp::Fintensity = 0.0;
 }
 
 
 // [[Rcpp::export]]
-Rcpp::List BackwardIteration(int inf) {
+Rcpp::List BackwardIteration() {
   
   /// Terminal Reward
   sdp::Matrix4D<float>FM_TR;
   FM_TR.resize((sdp::MaxT-sdp::MinT)+1, sdp::NSites+1, sdp::MaxX+1, 2, 0.0);
   
+  
   for (int r = 0; r <= (sdp::MaxT-sdp::MinT); ++r)
+  {
+    for (int c = 0; c <= sdp::MaxX; ++c)
     {
-      for (int c = 0; c <= sdp::MaxX; ++c)
-      {
-        FM_TR[r][sdp::NSites][c][inf] = CalculateTR(c, r, sdp::w, sdp::xc, sdp::B0[inf], sdp::nTR_x, sdp::nTR_y);
-      }
+      FM_TR[r][sdp::NSites][c][0] = CalculateTR(c, r, sdp::w, sdp::xc, sdp::B0, sdp::nTR_x, sdp::nTR_y);
+      FM_TR[r][sdp::NSites][c][1] = CalculateTR(c, r, sdp::w, sdp::xc, sdp::B0, sdp::nTR_x, sdp::nTR_y);
+    }
   }
 
   for (int r = 0; r < sdp::NSites; ++r)
+  {
+    for (int c = 0; c <= sdp::MaxX; ++c)
     {
-      for (int c = 0; c <= sdp::MaxX; ++c)
-      {
-        FM_TR[(sdp::MaxT-sdp::MinT)][r][c][inf] = sdp::B0[inf];
-      }
+      FM_TR[(sdp::MaxT-sdp::MinT)][r][c][0] = sdp::B0;
+      FM_TR[(sdp::MaxT-sdp::MinT)][r][c][1] = sdp::B0;
+    }
   }
   
   sdp::FMatrix  = FM_TR;
@@ -633,68 +637,79 @@ Rcpp::List BackwardIteration(int inf) {
   sdp::Matrix4D<float>PMatrix2;
   sdp::PMatrix2.resize(sdp::NSites+1, (sdp::MaxT-sdp::MinT)+1,sdp::MaxX+1, 2, 0.0);
   
+  
+  Rcpp::List out(5);
+  
   arma::vec  Mrew(sdp::NSites+1);
   double     max_Reward, decision;
-  Rcpp::List out(5);
 
   
-  for (int time = ((sdp::MaxT-sdp::MinT)-1); time >= 0; --time)
+  // // Progress bar
+  // Progress p(sdp::MaxT*(sdp::NSites), pbar);
+  
+  for (int inf = 0; inf <=1; ++inf)
+  {
+    for (int time = ((sdp::MaxT-sdp::MinT)-1); time >= 0; --time)
     {
       for (int site = 0; site < (sdp::NSites); ++site)
       {
-        
+  
         sdp::FMatrix[time][site][0][inf] = 0.0;
         // p.increment(); // update progress
-        
+  
         for(int x = 1; x <= (sdp::MaxX); ++x) {
-          
+  
           sdp::Fintensity = 0.0;
           max_Reward = 0.0;
           decision = 0.0;
           
+          
           double f_help = Foraging(time, site, x, inf);
           sdp::FMatrix[time][site][x][inf] = f_help;
-          
+  
           decision   = - sdp::Fintensity - 1.0;
           sdp::DMatrix1[site][time][x][inf] = decision;
-          
+  
           max_Reward = f_help;
-          
+  
           for (int bb = 0; bb <= sdp::NSites; ++bb) Mrew(bb) = 0.0;
           
-          for (int dest = site; dest <= sdp::NSites; ++dest)
-          {
-            float help_z = Flying(time, site, x, inf, dest);
-            if(dest == site) help_z = 0;
-            Mrew[dest] = help_z;
-          }
-          
-          double help_flying = 0.0;
-          int best_bb = 0;
-          for (int bb = 0; bb <= sdp::NSites; ++bb)
-          {
-            if (Mrew[bb] > help_flying)
+            for (int dest = site; dest <= sdp::NSites; ++dest)
             {
-              help_flying = Mrew(bb);
-              best_bb = bb;
-              sdp::DMatrix2[site][time][x][inf] = (double)(bb);
-              if (help_flying > max_Reward) max_Reward = help_flying;
+              ///if bearing TO BE INCLUDED
+              float help_z = Flying(time, site, x, inf, dest);
+              if(dest == site) help_z = 0;
+              Mrew[dest] = help_z;
             }
-          }
-          
-          sdp::PMatrix1[site][time][x][inf] = DecError((max_Reward - sdp::FMatrix[time][site][x][inf])/max_Reward, sdp::decError);
-          sdp::PMatrix2[site][time][x][inf] = DecError((max_Reward - Mrew(best_bb))/max_Reward, sdp::decError);
-          
-          double sum_action = sdp::PMatrix1[site][time][x][inf] + sdp::PMatrix2[site][time][x][inf];
-          //
-          sdp::PMatrix1[site][time][x][inf] /= sum_action;
-          sdp::PMatrix2[site][time][x][inf] /= sum_action;
-          
-          sdp::FMatrix[time][site][x][inf]  = max_Reward;
-          
+            
+            double help_flying = 0.0;
+            int best_bb = 0;
+            for (int bb = 0; bb <= sdp::NSites; ++bb)
+            {
+              if (Mrew[bb] > help_flying)
+              {
+                help_flying = Mrew(bb);
+                best_bb = bb;
+                sdp::DMatrix2[site][time][x][inf] = (double)(bb);
+                if (help_flying > max_Reward) max_Reward = help_flying;
+              }
+            }
+            
+            sdp::PMatrix1[site][time][x][inf] = DecError((max_Reward - sdp::FMatrix[time][site][x][inf])/max_Reward, sdp::decError);
+            sdp::PMatrix2[site][time][x][inf] = DecError((max_Reward - Mrew(best_bb))/max_Reward, sdp::decError);
+            
+            double sum_action = sdp::PMatrix1[site][time][x][inf] + sdp::PMatrix2[site][time][x][inf];
+            //
+            sdp::PMatrix1[site][time][x][inf] /= sum_action;
+            sdp::PMatrix2[site][time][x][inf] /= sum_action;
+            
+            sdp::FMatrix[time][site][x][inf]  = max_Reward;
+     
         } // end x
+       
       } // end site
     } // end time
+  }
   
   out[0] = sdp::FMatrix;
   out[1] = sdp::DMatrix1;
@@ -706,9 +721,11 @@ Rcpp::List BackwardIteration(int inf) {
 }
 
 
-///////////////////////////////////////////////////////////////
-////// Export Functions: Forward Simulation ///////////////////
-///////////////////////////////////////////////////////////////
+
+// ///////////////////////////////////////////////////////////////
+// ////// Export Functions: Forward Simulation ///////////////////
+// ///////////////////////////////////////////////////////////////
+
 
 
 // [[Rcpp::export]]
@@ -718,8 +735,7 @@ void InitSim (int MinT,
               int MaxX,
               double w,
               double xc,
-              Rcpp::NumericVector B0,
-              Rcpp::NumericVector uMax,
+              double B0,
               Rcpp::NumericVector expFly,
               Rcpp::NumericVector expFor,
               Rcpp::NumericVector b0,
@@ -728,8 +744,7 @@ void InitSim (int MinT,
               double pred_a1,
               double pred_a2,
               double c,
-              Rcpp::NumericVector speed,
-              Rcpp::NumericVector f,
+              double speed,
               Rcpp::NumericVector WindAssist,
               Rcpp::NumericVector WindProb,
               Rcpp::NumericVector ZStdNorm,
@@ -738,7 +753,8 @@ void InitSim (int MinT,
               Rcpp::NumericVector nTR_y,
               double decError,
               arma::mat dist,
-              arma::mat y_gain,
+              arma::mat bear,
+              Rcpp::NumericVector y_gain,
               arma::mat y_expend)
 {
   // Basic Parms
@@ -751,9 +767,6 @@ void InitSim (int MinT,
   sdp::B0 = B0;
   sdp::w = w;
   sdp::xc = xc;
-  sdp::uMax = uMax;
-  sdp::expFly = expFly;
-  sdp::expFor = expFor;
   sdp::b0 = b0;
   sdp::b1 = b1;
   sdp::b2 = b2;
@@ -761,7 +774,6 @@ void InitSim (int MinT,
   sdp::pred_a2 = pred_a2;
   sdp::c = c;
   sdp::speed = speed;
-  sdp::f = f;
   sdp::WindAssist = WindAssist;
   sdp::WindProb = WindProb;
   sdp::ZStdNorm = ZStdNorm;
@@ -772,27 +784,27 @@ void InitSim (int MinT,
 
   // Sites
   sdp::dist   = dist;
+  sdp::bear   = bear;
   sdp::y_gain = y_gain;
   sdp::expend = y_expend;
 
 }
 
-
 // [[Rcpp::export]]
 arma::vec simForaging(double f_intensity, int time, int site, int x, int inf)
 {
-  double gain, new_x = 0.00, mean, SD, Predat, Runif, pre_x, red;
+  double gain, new_x = 0.00, mean, SD, Predat, Runif, pre_x,red;
   double LB, UB;
   int hit = 0, dead = false;
   int NStdNorm = sdp::ZStdNorm.size();
   arma::vec out = arma::zeros<arma::vec>(2);
   
-  if (inf > 0) {
-    red = 1 - (sdp::expFor[inf]/100);
-  } else {
+  //if (inf > 0) {
+  //  red = 1 - (sdp::expFor[inf]/100);
+  //} else {
     red = 1;
-  }
-  
+  //}
+
   Runif = R::runif(0,1);
   LB = 0.0;
   UB = 0.0;
@@ -803,7 +815,7 @@ arma::vec simForaging(double f_intensity, int time, int site, int x, int inf)
       hit = h;
     LB += sdp::PStdNorm(h);
   }
-  mean = sdp::y_gain(site, time);
+  mean = sdp::y_gain(site);
   SD =   1;
 
   double temp_gain = mean + sdp::ZStdNorm(hit) * SD;
@@ -811,7 +823,7 @@ arma::vec simForaging(double f_intensity, int time, int site, int x, int inf)
   if (gain < 0.0) gain = 0.0;
 
   pre_x = double(x);
-  double expenditure = sdp::expend(site, time) * red;
+  double expenditure = sdp::expend(site, time)*red;
 
   new_x = pre_x + f_intensity * gain - expenditure;
 
@@ -843,22 +855,21 @@ arma::vec simForaging(double f_intensity, int time, int site, int x, int inf)
   return out;
 }
 
-
 // [[Rcpp::export]]
 arma::vec simFlying(int decision, int time, int site, int x, int inf)
 {
-  double nextx, total_D, distance, range, red;
+  double nextx, total_D, distance, range,red;
   double Sqr_c, Sqr_ca, t, UB, LB, Runif;
   int hit = 0;
   int NWind = sdp::WindAssist.size();
   arma::vec out = arma::zeros<arma::vec>(2);
-
-  if (inf > 0) {
-    red = 1 - (sdp::expFly[inf]/100);
-  } else {
-    red = 1;
-  }
   
+  //if (inf > 0) {
+   // red = 1 - (sdp::expFly[inf]/100);
+  //} else {
+    red = 1;
+  //}
+
   int dest_site = decision;
   total_D = 0.0;
   total_D = sdp::dist(site, dest_site);
@@ -875,15 +886,17 @@ arma::vec simFlying(int decision, int time, int site, int x, int inf)
   }
   distance = total_D * (1.0 + sdp::WindAssist(hit));
 
-  range =   (sdp::c * red) * (1.0 - (1.0/ (sqrt(1.0 + (  ((double)(x) - (1 - sdp::f(inf)) * x) / (double)(sdp::MaxX))))));
+  range =   (sdp::c * red) * (1.0 - (1.0/ (sqrt(1.0 + (  (double)(x) / (double)(sdp::MaxX))))));
   Sqr_c  = ((sdp::c * red) *(sdp::c * red));
   Sqr_ca = ((sdp::c * red) - (range - distance))*((sdp::c * red) - (range - distance));
   nextx  = (((Sqr_c/Sqr_ca) - 1.0) * (double)(sdp::MaxX));
 
 
-  t =  time + (distance/ sdp::speed(inf));
+  t =  time + (distance/ sdp::speed);
 
   out(0) = Round(t);
   out(1) = Round(nextx);
   return out;
 }
+
+

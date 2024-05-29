@@ -58,7 +58,7 @@
 
 #### 5. Simulation (past, present)
   
-sp <- 'Godwit'
+sp <- 'RedKnot'
 subBreedTab <- breedTab %>% filter(species == sp) %>% slice(5)
 
 ind <- 1
@@ -141,6 +141,8 @@ ind <- 1
         #            z = model@Results$ProbMatrix[,,101,2,2]))
         
         
-        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50), inf = 1), error = function(e) NULL)
+        simu    <- tryCatch(fwdSimulation(model, 100, start_t = 1, start_site = 1, start_x = c(30,50), inf = 0.1), error = function(e) NULL)
         condProfile(simu, model)
         simNetwork(simu, model, crds_ind = mudflatTab %>% st_centroid() %>% st_coordinates() %>% suppressWarnings(), plot = T)
+        table_disp <- disp_inf(simu,model)
+        

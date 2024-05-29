@@ -316,8 +316,13 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x, inf ) {
   
   ### First entry
   for(i in 1:dim(SimOut)[1]) {
-    SimOut[i, ,start_t] <- c(start_t, start_site[i], x[i], 0, 0, 0, inf)
+    SimOut[i, ,start_t] <- c(start_t, start_site[i], x[i], 0, 0, 0, 0)
   }
+  
+  inf_risk <- tibble(index = c(1:nrow(model@Sites$crds)),
+                     lon = model@Sites$crds[, 1],
+                     lat = model@Sites$crds[, 2]) %>%
+    mutate(risk = ifelse(lat >= -9.2 & lat <= 43, inf, 0))
   
   
   ## SimOut: 1 = time, 2 = site, 3 = x, 4 = decision, 5 = flying, 6 = dead {
@@ -325,61 +330,85 @@ fwdSimulation <- function(model, NrInd, start_t, start_site, start_x, inf ) {
     
     for(ind in 1:dim(SimOut)[1]) {
       
+      ##Infection
+      ##infection status: all infect at day 70 with two days of latency= 0.5 and then pnorm of infection = 1
       
-      
-      ## Not dead, not arrived, not flying
-      if(!SimOut[ind, 6, time] & 
-         sum(SimOut[ind, 2, ] >= nrow(model@Sites$crds), na.rm = T)<1 & !SimOut[ind, 5, time]) {
-        
-        ## Decision
-        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], SimOut[ind, 7, time]+1, 1]) {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], SimOut[ind, 7, time]+1, 1]
+      if (time > 1 & !SimOut[ind, 6, time]) { 
+        if (!is.na(SimOut[ind, 2, time]) & SimOut[ind, 7, time - 1] == 0 & inf_risk[SimOut[ind, 2, time], 4] > 0 & runif(1) > 0.5) {
+          SimOut[ind, 7, time] <- 0.5
+        } else if (SimOut[ind, 7, time - 1] == 0.5) {
+          if (length(which(SimOut[ind, 7, ] == 0.5)) < 2) {
+            SimOut[ind, 7, time] <- 0.5
+          } else {
+            SimOut[ind, 7, time] <- 1
+          }
+        } else if (SimOut[ind, 7, time - 1] == 1) {
+          if (pnorm(length(which(SimOut[ind, 7, ] == 1)), 7, 2) < runif(1)) {
+            SimOut[ind, 7, time] <- 1
+          } else {
+            SimOut[ind, 7, c(time:150)] <- 2
+          }
+        } else if (SimOut[ind, 7, time - 1] == 2) {
+          SimOut[ind, 7, time] <- 2
         } else {
-          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], SimOut[ind, 7, time]+1, 2]
+          SimOut[ind, 7, time] <- 0  
         }
-        
+      }
+      
+
+      ## Not dead, not arrived, not flying
+      if(!SimOut[ind, 6, time] &
+         sum(SimOut[ind, 2, ] >= nrow(model@Sites$crds), na.rm = T)<1 & !SimOut[ind, 5, time]) {
+
+        ## Decision
+        if(runif(1) <  model@Results$ProbMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time], ifelse (SimOut[ind, 7, time] == 2 |SimOut[ind, 7, time] == 0.5,1,SimOut[ind, 7, time]+1) , 1]) {
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time],  ifelse (SimOut[ind, 7, time] == 2 |SimOut[ind, 7, time] == 0.5,1,SimOut[ind, 7, time]+1), 1]
+        } else {
+          decision  <- model@Results$DecisionMatrix[SimOut[ind, 2, time], time, SimOut[ind, 3, time],  ifelse (SimOut[ind, 7, time] == 2 |SimOut[ind, 7, time] == 0.5,1,SimOut[ind, 7, time]+1), 2]
+        }
+
         ## Action
         if(decision>=0) { ## Flying
-          
+
           fl_help = simFlying(decision, time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], SimOut[ind, 7, time])
-          
+
           nextt = fl_help[1] + 1
           if(nextt<=time) nextt <- time+1
           if(nextt>dim(SimOut)[3]) time <- dim(SimOut)[3]
-          
+
           nextx = fl_help[2] + 1
           if(nextx <  0) {
             nextx = 0
             dead  = 1 } else  dead = 0
           if(nextx > model@Init$MaxX) nextx = model@Init$MaxX
-          
-          SimOut[ind,,nextt] = c(nextt, decision+1, nextx, NA, 0, dead,  inf)
+
+          SimOut[ind,,nextt] = c(nextt, decision+1, nextx, NA, 0, dead,  0)
           if(nextt>(time+1)) SimOut[ind,5:6,(time+1):(nextt-1)] = cbind(1,0)
           if(SimOut[ind, 6, nextt])  SimOut[ind, 6, nextt:dim(SimOut)[3]] = 1 ## if dead make dead till the end
-          
+
           if(SimOut[ind, 2, nextt]==nrow(model@Sites$crds)) {
             SimOut[ind,2:7, nextt:dim(SimOut)[3]] <- SimOut[ind, 2:7, nextt]
             SimOut[ind,1,   nextt:dim(SimOut)[3]] <- seq(nextt, dim(SimOut)[3])
           }
-          
+
         } else { ## Feeding
-          
+
           fo_help = simForaging(abs(decision+1.0), time-1, SimOut[ind, 2, time]-1, SimOut[ind, 3, time], SimOut[ind, 7, time])
-          
+
           newx = fo_help[1]+1
           dead = fo_help[2]
           if(newx<=0) dead = 1
-          
+
           if(newx > model@Init$MaxX) newx = model@Init$MaxX
-          
+
           SimOut[ind,,time+1] = c(time+1, SimOut[ind, 2, time], newx, abs(decision+1.0), 0, dead, inf)
-          
+
           if(SimOut[ind, 6, time+1])  SimOut[ind, 6, (time+1):dim(SimOut)[3]] = 1 ## if dead make dead till the end
-          
+
         }
-        
+
       }
-      
+
     } ## Ind loop
   } ## time loop
   
@@ -574,6 +603,7 @@ simNetwork <- function(simu, model, crds_ind, map = eaafMap, plot = FALSE) {
     plot(eaafMap$bbox, add = T, border = "grey60")
   }
   
+
   ### Relative Site Use
   relSite <- do.call("rbind", lapply(1:nrow(trkS), function(y) {
     tmp <- trkS[y,]
@@ -654,4 +684,16 @@ condProfile <- function(simu, model) {
   axis(1, at = seq(model@Init$MinT,model@Init$MaxT, by = 15), labels = format(as.POSIXct("2012-01-01")+seq(model@Init$MinT,model@Init$MaxT, by = 15)*24*60*60, "%b-%d"))
   par(opar)
 }
+
+
+##table of infection dispersal
+disp_inf <- function(simu,model){
+  trkS <- apply(simu,1, function (x){
+    tibble ( lon_inf = model@Sites$crds[x[2,which(x[6,]==0.5)[1]],1],
+             lat_inf = model@Sites$crds[x[2,which(x[6,]==0.5)[1]],2],
+             lon_last = model@Sites$crds[x[2,max(which((x[6,]==1)))],1],
+             lat_last = model@Sites$crds[x[2,max(which((x[6,]==1)))],2] )
+  })%>%  do.call(rbind, .)
+}
+
 
